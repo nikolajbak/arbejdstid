@@ -181,3 +181,91 @@ test('validateBackup afviser fejlformede elementer', () => {
   ];
   for (const d of daarlige) assert.equal(validateBackup(med(d)).ok, false, JSON.stringify(d));
 });
+
+import { forskel, flet, normaliserEmail, fejlTekst } from '../core.js';
+
+const tom = () => ({ kunder: [], opgavetyper: [], registreringer: [], ur: null });
+const k = (id, navn, timepris = 1) => ({ id, navn, timepris, arkiveret: false });
+
+test('forskel finder nye, ændrede og slettede elementer', () => {
+  const foer = { ...tom(), kunder: [k('a', 'A'), k('b', 'B')] };
+  const efter = { ...tom(), kunder: [k('a', 'A', 2), k('c', 'C')] };
+  assert.deepEqual(forskel(foer, efter), [
+    { type: 'set', samling: 'kunder', id: 'a', data: { navn: 'A', timepris: 2, arkiveret: false } },
+    { type: 'set', samling: 'kunder', id: 'c', data: { navn: 'C', timepris: 1, arkiveret: false } },
+    { type: 'slet', samling: 'kunder', id: 'b' },
+  ]);
+});
+
+test('forskel ignorerer nøglerækkefølge og listerækkefølge', () => {
+  const foer = { ...tom(), kunder: [k('a', 'A'), k('b', 'B')] };
+  const efter = { ...tom(), kunder: [{ arkiveret: false, timepris: 1, navn: 'B', id: 'b' }, k('a', 'A')] };
+  assert.deepEqual(forskel(foer, efter), []);
+});
+
+test('forskel melder ændret ur som én ur-op', () => {
+  const ur = { kundeId: 'a', opgavetypeId: 't', start: '2026-10-07T08:00:00.000Z', note: '' };
+  assert.deepEqual(forskel(tom(), { ...tom(), ur }), [{ type: 'ur', ur }]);
+  assert.deepEqual(forskel({ ...tom(), ur }, { ...tom(), ur: { ...ur } }), []);
+  assert.deepEqual(forskel({ ...tom(), ur }, tom()), [{ type: 'ur', ur: null }]);
+});
+
+test('forskel udfylder manglende arkiveret og note, så reglerne accepterer data', () => {
+  const efter = {
+    ...tom(),
+    opgavetyper: [{ id: 't', navn: 'Møde' }],
+    registreringer: [{ id: 'r', kundeId: 'a', opgavetypeId: 't', start: 's', slut: 'u', timepris: 1 }],
+  };
+  const ops = forskel(tom(), efter);
+  assert.deepEqual(ops[0].data, { navn: 'Møde', arkiveret: false });
+  assert.equal(ops[1].data.note, '');
+  assert.deepEqual(forskel(efter, efter), []);
+});
+
+test('flet genbruger kunde og opgavetype med samme navn uanset store bogstaver', () => {
+  const lokal = {
+    ...tom(),
+    kunder: [k('l1', 'acme')],
+    opgavetyper: [{ id: 'lt', navn: 'møde', arkiveret: false }],
+    registreringer: [{ id: 'r1', kundeId: 'l1', opgavetypeId: 'lt', start: 's', slut: 'u', timepris: 1, note: '' }],
+  };
+  const konto = { ...tom(), kunder: [k('k1', 'ACME')], opgavetyper: [{ id: 'kt', navn: 'Møde', arkiveret: false }] };
+  const r = flet(lokal, konto);
+  assert.deepEqual(r.kunder.map((x) => x.id), ['k1']);
+  assert.deepEqual(r.opgavetyper.map((x) => x.id), ['kt']);
+  assert.equal(r.registreringer[0].kundeId, 'k1');
+  assert.equal(r.registreringer[0].opgavetypeId, 'kt');
+});
+
+test('flet tilføjer nye kunder og registreringer og springer kendte registrerings-id over', () => {
+  const reg = (id, kundeId) => ({ id, kundeId, opgavetypeId: 't', start: 's', slut: 'u', timepris: 1, note: '' });
+  const lokal = { ...tom(), kunder: [k('l2', 'Ny')], registreringer: [reg('r1', 'l2'), reg('r2', 'l2')] };
+  const konto = { ...tom(), registreringer: [reg('r1', 'x')] };
+  const r = flet(lokal, konto);
+  assert.deepEqual(r.kunder.map((x) => x.id), ['l2']);
+  assert.deepEqual(r.registreringer.map((x) => [x.id, x.kundeId]), [['r1', 'x'], ['r2', 'l2']]);
+});
+
+test('flet overfører kun lokalt ur, hvis kontoen intet har', () => {
+  const urL = { kundeId: 'l', opgavetypeId: 't', start: 'a', note: '' };
+  const urK = { kundeId: 'k', opgavetypeId: 't', start: 'b', note: '' };
+  assert.deepEqual(flet({ ...tom(), ur: urL }, tom()).ur, urL);
+  assert.deepEqual(flet({ ...tom(), ur: urL }, { ...tom(), ur: urK }).ur, urK);
+});
+
+test('normaliserEmail retter til små bogstaver og afviser ugyldige', () => {
+  assert.equal(normaliserEmail(' Ven@Mail.DK '), 'ven@mail.dk');
+  for (const s of ['ven', '', 'a@b', null]) assert.equal(normaliserEmail(s), null, String(s));
+});
+
+test('fejlTekst oversætter Firebase-fejl til dansk', () => {
+  for (const kode of ['auth/invalid-credential', 'auth/wrong-password', 'auth/user-not-found', 'auth/invalid-email']) {
+    assert.equal(fejlTekst(kode), 'Forkert e-mail eller adgangskode.');
+  }
+  assert.equal(fejlTekst('auth/email-already-in-use'), 'Der findes allerede en konto med den e-mail. Log ind i stedet.');
+  assert.equal(fejlTekst('auth/weak-password'), 'Adgangskoden skal være mindst 6 tegn.');
+  assert.equal(fejlTekst('auth/network-request-failed'), 'Første login kræver internet.');
+  assert.equal(fejlTekst('auth/too-many-requests'), 'For mange forsøg. Prøv igen om lidt.');
+  assert.equal(fejlTekst('permission-denied'), 'Din adgang er fjernet.');
+  assert.equal(fejlTekst('noget-andet'), 'Noget gik galt. Prøv igen.');
+});

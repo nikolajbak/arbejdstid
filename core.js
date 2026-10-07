@@ -153,3 +153,89 @@ export function validateBackup(obj) {
     || !obj.registreringer.every(gyldigReg) || !gyldigtUr(obj.ur)) return fejl;
   return { ok: true, data: { ...obj, ur: obj.ur ?? null } };
 }
+
+// --- Synkronisering med skyen ------------------------------------------------
+
+const SAMLINGER = ['kunder', 'opgavetyper', 'registreringer'];
+
+// Udfylder felter, som ældre data kan mangle, så de består databasens regler.
+function rens(samling, { id, ...data }) {
+  if (samling === 'registreringer') return { ...data, note: data.note ?? '' };
+  return { ...data, arkiveret: !!data.arkiveret };
+}
+
+// JSON med sorterede nøgler, så rækkefølgen af felter ikke tæller som en ændring.
+function fast(v) {
+  if (Array.isArray(v)) return `[${v.map(fast).join(',')}]`;
+  if (v && typeof v === 'object') {
+    return `{${Object.keys(v).sort().map((n) => `${JSON.stringify(n)}:${fast(v[n])}`).join(',')}}`;
+  }
+  return JSON.stringify(v ?? null);
+}
+
+// Hvilke dokumenter skal skrives eller slettes for at gå fra foer til efter.
+export function forskel(foer, efter) {
+  const ops = [];
+  for (const samling of SAMLINGER) {
+    const gamle = new Map(foer[samling].map((x) => [x.id, fast(rens(samling, x))]));
+    const nye = new Set();
+    for (const x of efter[samling]) {
+      nye.add(x.id);
+      const data = rens(samling, x);
+      if (gamle.get(x.id) !== fast(data)) ops.push({ type: 'set', samling, id: x.id, data });
+    }
+    for (const id of gamle.keys()) if (!nye.has(id)) ops.push({ type: 'slet', samling, id });
+  }
+  if (fast(foer.ur) !== fast(efter.ur)) ops.push({ type: 'ur', ur: efter.ur ?? null });
+  return ops;
+}
+
+// Fletter data fra telefonen ind i kontoen. Navne, der findes i forvejen, genbruges.
+export function flet(lokal, konto) {
+  const noegle = (navn) => navn.trim().toLocaleLowerCase('da');
+  const flettet = (samling) => {
+    const liste = [...konto[samling]];
+    const ny = new Map();
+    for (const x of lokal[samling]) {
+      const fundet = liste.find((y) => noegle(y.navn) === noegle(x.navn));
+      if (fundet) ny.set(x.id, fundet.id);
+      else liste.push(x);
+    }
+    return [liste, ny];
+  };
+  const [kunder, kundeId] = flettet('kunder');
+  const [opgavetyper, typeId] = flettet('opgavetyper');
+  const kendte = new Set(konto.registreringer.map((r) => r.id));
+  const omskriv = (x) => ({
+    ...x,
+    kundeId: kundeId.get(x.kundeId) ?? x.kundeId,
+    opgavetypeId: typeId.get(x.opgavetypeId) ?? x.opgavetypeId,
+  });
+  return {
+    kunder,
+    opgavetyper,
+    registreringer: [...konto.registreringer, ...lokal.registreringer.filter((r) => !kendte.has(r.id)).map(omskriv)],
+    ur: konto.ur ?? (lokal.ur ? omskriv(lokal.ur) : null),
+  };
+}
+
+export function normaliserEmail(s) {
+  const e = String(s ?? '').trim().toLowerCase();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) ? e : null;
+}
+
+const FEJL = {
+  'auth/invalid-credential': 'Forkert e-mail eller adgangskode.',
+  'auth/wrong-password': 'Forkert e-mail eller adgangskode.',
+  'auth/user-not-found': 'Forkert e-mail eller adgangskode.',
+  'auth/invalid-email': 'Forkert e-mail eller adgangskode.',
+  'auth/email-already-in-use': 'Der findes allerede en konto med den e-mail. Log ind i stedet.',
+  'auth/weak-password': 'Adgangskoden skal være mindst 6 tegn.',
+  'auth/network-request-failed': 'Første login kræver internet.',
+  'auth/too-many-requests': 'For mange forsøg. Prøv igen om lidt.',
+  'permission-denied': 'Din adgang er fjernet.',
+};
+
+export function fejlTekst(kode) {
+  return FEJL[kode] ?? 'Noget gik galt. Prøv igen.';
+}
