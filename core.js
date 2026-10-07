@@ -107,7 +107,9 @@ const p2 = (n) => String(n).padStart(2, '0');
 const klokken = (d) => `${p2(d.getHours())}:${p2(d.getMinutes())}`;
 const csvTal = (n) => n.toFixed(2).replace('.', ',');
 const csvFelt = (v) => {
-  const s = String(v ?? '');
+  let s = String(v ?? '');
+  // Excel tolker felter, der starter med = + - @, som formler.
+  if (/^[=+\-@]/.test(s)) s = `'${s}`;
   return /[;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 
@@ -130,9 +132,24 @@ export function toCSV(entries, kunder, opgavetyper) {
   return '﻿' + linjer.join('\r\n');
 }
 
+const erTekst = (v) => typeof v === 'string';
+const erTal = (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0;
+const erDato = (v) => erTekst(v) && !Number.isNaN(new Date(v).getTime());
+const erValgfriTekst = (v) => v == null || erTekst(v);
+
+const gyldigKunde = (k) => k && erTekst(k.id) && erTekst(k.navn) && erTal(k.timepris);
+const gyldigType = (t) => t && erTekst(t.id) && erTekst(t.navn);
+const gyldigReg = (r) => r && erTekst(r.id) && erTekst(r.kundeId) && erTekst(r.opgavetypeId)
+  && erDato(r.start) && erDato(r.slut) && new Date(r.slut) > new Date(r.start)
+  && erTal(r.timepris) && erValgfriTekst(r.note);
+const gyldigtUr = (u) => u == null
+  || (erTekst(u.kundeId) && erTekst(u.opgavetypeId) && erDato(u.start) && erValgfriTekst(u.note));
+
 export function validateBackup(obj) {
   const fejl = { ok: false, fejl: 'Filen kunne ikke læses som backup' };
   if (!obj || typeof obj !== 'object' || obj.version !== 1) return fejl;
   if (!['kunder', 'opgavetyper', 'registreringer'].every((k) => Array.isArray(obj[k]))) return fejl;
+  if (!obj.kunder.every(gyldigKunde) || !obj.opgavetyper.every(gyldigType)
+    || !obj.registreringer.every(gyldigReg) || !gyldigtUr(obj.ur)) return fejl;
   return { ok: true, data: { ...obj, ur: obj.ur ?? null } };
 }

@@ -155,3 +155,29 @@ test('validateBackup accepterer gyldig backup og sætter ur til null', () => {
   assert.equal(r.ok, true);
   assert.equal(r.data.ur, null);
 });
+
+test('toCSV beskytter tekstfelter mod Excel-formler', () => {
+  const linje = toCSV([csvEntry('- møde flyttet')], [{ id: 'k1', navn: '=SUM(1;2)' }], csvTyper).split('\r\n')[1];
+  assert.ok(linje.includes(`;"'=SUM(1;2)";`), linje);
+  assert.ok(linje.endsWith(";'- møde flyttet"), linje);
+});
+
+test('validateBackup afviser fejlformede elementer', () => {
+  const gyldigKunde = { id: 'k', navn: 'K', timepris: 500, arkiveret: false };
+  const gyldigType = { id: 't', navn: 'T', arkiveret: false };
+  const gyldigReg = { id: 'r', kundeId: 'k', opgavetypeId: 't', start: '2026-10-07T08:00:00.000Z', slut: '2026-10-07T09:00:00.000Z', timepris: 500, note: '' };
+  const med = (over) => ({ version: 1, kunder: [gyldigKunde], opgavetyper: [gyldigType], registreringer: [gyldigReg], ur: null, ...over });
+  assert.equal(validateBackup(med({})).ok, true);
+  const daarlige = [
+    { registreringer: [null] },
+    { registreringer: [{ ...gyldigReg, start: 'ikke en dato' }] },
+    { registreringer: [{ ...gyldigReg, slut: gyldigReg.start }] },
+    { registreringer: [{ ...gyldigReg, timepris: '500' }] },
+    { registreringer: [{ ...gyldigReg, note: 5 }] },
+    { kunder: [{ ...gyldigKunde, timepris: -1 }] },
+    { kunder: [{ ...gyldigKunde, navn: null }] },
+    { opgavetyper: [{ id: 't' }] },
+    { ur: { kundeId: 'k', opgavetypeId: 't', start: 'x' } },
+  ];
+  for (const d of daarlige) assert.equal(validateBackup(med(d)).ok, false, JSON.stringify(d));
+});

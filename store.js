@@ -18,13 +18,22 @@ export function defaultData() {
 
 export function createStore(storage = globalThis.localStorage) {
   return {
+    // Navnet på sikkerhedskopien, hvis gemte data ikke kunne læses.
+    beskadiget: null,
     load() {
+      const raa = storage.getItem(NOEGLE);
+      if (raa === null) return defaultData();
+      let r;
       try {
-        const r = validateBackup(JSON.parse(storage.getItem(NOEGLE)));
-        return r.ok ? r.data : defaultData();
+        r = validateBackup(JSON.parse(raa));
       } catch {
-        return defaultData();
+        r = { ok: false };
       }
+      if (r.ok) return r.data;
+      // Gem de ulæselige data til side, så næste gemning ikke sletter dem.
+      this.beskadiget = `${NOEGLE}.beskadiget-${Date.now()}`;
+      storage.setItem(this.beskadiget, raa);
+      return defaultData();
     },
     save(data) {
       storage.setItem(NOEGLE, JSON.stringify(data));

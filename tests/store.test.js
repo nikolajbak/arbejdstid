@@ -36,3 +36,19 @@ test('ukendt version giver standarddata', () => {
 test('newId giver unikke id-strenge', () => {
   assert.notEqual(newId(), newId());
 });
+
+test('beskadigede data gemmes til side før standarddata bruges', () => {
+  const s = fakeStorage({ 'arbejdstid.v1': '{"version":2,"kunder":[]}' });
+  const store = createStore(s);
+  store.load();
+  const kopi = [...s.m.keys()].find((k) => k.startsWith('arbejdstid.v1.beskadiget-'));
+  assert.ok(kopi, 'ingen sikkerhedskopi');
+  assert.equal(s.m.get(kopi), '{"version":2,"kunder":[]}');
+  assert.equal(store.beskadiget, kopi);
+});
+
+test('tom storage giver ingen sikkerhedskopi', () => {
+  const store = createStore(fakeStorage());
+  store.load();
+  assert.equal(store.beskadiget, null);
+});

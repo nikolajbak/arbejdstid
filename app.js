@@ -548,7 +548,9 @@ function render() {
     if (b.dataset.fane === fane) b.setAttribute('aria-current', 'page');
     else b.removeAttribute('aria-current');
   }
-  indhold.replaceChildren(...[VISNINGER[fane]()].flat(Infinity).filter(Boolean));
+  const advarsel = store.beskadiget && h('p', { class: 'fejl' },
+    'De gemte data kunne ikke læses, så appen er startet forfra. De gamle data er lagt til side og ikke slettet. Importér en backup under Indstillinger, hvis du har en.');
+  indhold.replaceChildren(...[advarsel, VISNINGER[fane]()].flat(Infinity).filter(Boolean));
 }
 
 for (const b of document.querySelectorAll('.faner button')) {
