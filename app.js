@@ -76,6 +76,14 @@ ark.addEventListener('click', (e) => {
   if (e.target === ark) lukArk();
 });
 
+// Ændrer elementet i den aktuelle tilstand. Et åbent ark kan holde en ældre
+// kopi, hvis der er kommet data fra en anden enhed, mens det var åbent.
+function aendr(samling, x, aendring) {
+  const aktuel = state[samling].find((y) => y.id === x.id);
+  if (aktuel) Object.assign(aktuel, aendring);
+  else state[samling].push({ ...x, ...aendring });
+}
+
 const aktive = (liste) => liste.filter((x) => !x.arkiveret);
 const arkiverede = (liste) => liste.filter((x) => x.arkiveret);
 
@@ -98,7 +106,7 @@ function redigerKunde(kunde) {
     if (!n) return (fejl.textContent = 'Skriv et navn');
     if (p === null) return (fejl.textContent = 'Skriv en timepris, fx 850 eller 850,50');
     if (ny) state.kunder.push({ id: newId(), navn: n, timepris: p, arkiveret: false });
-    else Object.assign(kunde, { navn: n, timepris: p });
+    else aendr('kunder', kunde, { navn: n, timepris: p });
     lukArk();
     commit();
   }
@@ -112,7 +120,7 @@ function redigerKunde(kunde) {
       fejl,
       h('div', { class: 'knapper' },
         h('button', { class: 'knap', type: 'submit' }, 'Gem'),
-        !ny && h('button', { class: 'knap fare', type: 'button', onclick: () => { kunde.arkiveret = true; lukArk(); commit(); } }, 'Arkivér kunde'),
+        !ny && h('button', { class: 'knap fare', type: 'button', onclick: () => { aendr('kunder', kunde, { arkiveret: true }); lukArk(); commit(); } }, 'Arkivér kunde'),
         h('button', { class: 'knap sekundaer', type: 'button', onclick: lukArk }, 'Annullér'),
       ),
     ),
@@ -130,7 +138,7 @@ function redigerType(type) {
     const n = navn.value.trim();
     if (!n) return (fejl.textContent = 'Skriv et navn');
     if (ny) state.opgavetyper.push({ id: newId(), navn: n, arkiveret: false });
-    else type.navn = n;
+    else aendr('opgavetyper', type, { navn: n });
     lukArk();
     commit();
   }
@@ -142,7 +150,7 @@ function redigerType(type) {
       fejl,
       h('div', { class: 'knapper' },
         h('button', { class: 'knap', type: 'submit' }, 'Gem'),
-        !ny && h('button', { class: 'knap fare', type: 'button', onclick: () => { type.arkiveret = true; lukArk(); commit(); } }, 'Arkivér opgavetype'),
+        !ny && h('button', { class: 'knap fare', type: 'button', onclick: () => { aendr('opgavetyper', type, { arkiveret: true }); lukArk(); commit(); } }, 'Arkivér opgavetype'),
         h('button', { class: 'knap sekundaer', type: 'button', onclick: lukArk }, 'Annullér'),
       ),
     ),
@@ -385,7 +393,7 @@ function registreringsArk(entry) {
     }
     const data = { kundeId: kunde.value, opgavetypeId: type.value, start: s, slut: sl, timepris, note: note.value.trim() };
     if (ny) state.registreringer.push({ id: newId(), ...data });
-    else Object.assign(entry, data);
+    else aendr('registreringer', entry, data);
     huskValg(kunde.value, type.value);
     lukArk();
     commit();
@@ -393,7 +401,7 @@ function registreringsArk(entry) {
 
   function slet() {
     if (!confirm('Slet denne registrering?')) return;
-    state.registreringer = state.registreringer.filter((r) => r !== entry);
+    state.registreringer = state.registreringer.filter((r) => r.id !== entry.id);
     lukArk();
     commit();
   }
@@ -710,7 +718,13 @@ async function efterLogin(user) {
   visUde('Arbejdstid', h('p', { class: 'tom' }, 'Henter …'));
   try {
     // Et adgangsbevis fra før bekræftelsen mangler e-mail_verified, som reglerne kræver.
-    if (!(await user.getIdTokenResult()).claims.email_verified) await user.getIdToken(true);
+    // Uden net kan et udløbet bevis ikke fornyes; Firestore bruger så sin kopi og
+    // synkroniserer, når der er forbindelse igen.
+    try {
+      if (!(await user.getIdTokenResult()).claims.email_verified) await user.getIdToken(true);
+    } catch (err) {
+      if (err.code !== 'auth/network-request-failed') throw err;
+    }
     godk = await hentGodkendelse(user.email);
     if (!godk) return visIkkeInviteret();
     await sikrProfil(user, godk);

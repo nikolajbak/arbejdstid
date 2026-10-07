@@ -117,3 +117,10 @@ test('profil med gyldigt eller tomt ur accepteres, ugyldigt ur afvises', async (
 test('bruger kan slette egne registreringer', async () => {
   await assertSucceeds(deleteDoc(doc(ven(), 'brugere/ven/kunder/k1')));
 });
+
+test('bruger kan sætte uid, selv hvis feltet mangler i et dokument oprettet i konsollen', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'godkendte/ny@x.dk'), { email: 'ny@x.dk', admin: true, inviteret: new Date() });
+  });
+  await assertSucceeds(updateDoc(doc(som('ny', 'ny@x.dk'), 'godkendte/ny@x.dk'), { uid: 'ny' }));
+});

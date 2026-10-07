@@ -53,7 +53,7 @@ service cloud.firestore {
         // Brugeren markerer sin egen konto som oprettet.
         || (godkendt() && email == egenEmail()
           && kunAendret(['uid'])
-          && resource.data.uid == null
+          && resource.data.get('uid', null) == null
           && request.resource.data.uid == request.auth.uid);
     }
 
