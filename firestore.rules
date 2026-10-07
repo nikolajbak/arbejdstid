@@ -1,0 +1,118 @@
+rules_version = '2';
+
+// Sikkerheden for Arbejdstid. Se docs/superpowers/specs/2026-10-07-login-og-sky-design.md.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function egenEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    function godkendelse() {
+      return /databases/$(database)/documents/godkendte/$(egenEmail());
+    }
+
+    // Logget ind, e-mail bekræftet og på listen over godkendte.
+    function godkendt() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && exists(godkendelse());
+    }
+
+    function admin() {
+      return godkendt() && get(godkendelse()).data.admin == true;
+    }
+
+    function felter(paakraevet, tilladt) {
+      return request.resource.data.keys().hasAll(paakraevet)
+        && request.resource.data.keys().hasOnly(tilladt);
+    }
+
+    function kunAendret(nogler) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(nogler);
+    }
+
+    match /godkendte/{email} {
+      allow get: if (request.auth != null && email == egenEmail()) || admin();
+      allow list: if admin();
+
+      allow create: if admin()
+        && felter(['email', 'admin', 'inviteret', 'uid'], ['email', 'admin', 'inviteret', 'uid'])
+        && request.resource.data.email == email
+        && request.resource.data.admin is bool
+        && request.resource.data.inviteret is timestamp
+        && request.resource.data.uid == null;
+
+      allow delete: if admin() && email != egenEmail();
+
+      allow update: if
+        // Admin ændrer andres administratorrettighed.
+        (admin() && email != egenEmail()
+          && kunAendret(['admin'])
+          && request.resource.data.admin is bool)
+        // Brugeren markerer sin egen konto som oprettet.
+        || (godkendt() && email == egenEmail()
+          && kunAendret(['uid'])
+          && resource.data.uid == null
+          && request.resource.data.uid == request.auth.uid);
+    }
+
+    match /brugere/{uid} {
+      function eget() {
+        return godkendt() && request.auth.uid == uid;
+      }
+
+      function gyldigtUr(u) {
+        return u == null || (u is map
+          && u.keys().hasAll(['kundeId', 'opgavetypeId', 'start'])
+          && u.keys().hasOnly(['kundeId', 'opgavetypeId', 'start', 'note'])
+          && u.kundeId is string
+          && u.opgavetypeId is string
+          && u.start is string
+          && (!('note' in u) || u.note is string));
+      }
+
+      allow read: if eget();
+      allow create, update: if eget()
+        && felter(['email', 'oprettet', 'ur'], ['email', 'oprettet', 'ur'])
+        && request.resource.data.email is string
+        && request.resource.data.oprettet is timestamp
+        && gyldigtUr(request.resource.data.ur);
+
+      match /kunder/{id} {
+        allow read, delete: if eget();
+        allow create, update: if eget()
+          && felter(['navn', 'timepris', 'arkiveret'], ['navn', 'timepris', 'arkiveret'])
+          && request.resource.data.navn is string
+          && request.resource.data.navn.size() > 0
+          && request.resource.data.timepris is number
+          && request.resource.data.timepris >= 0
+          && request.resource.data.arkiveret is bool;
+      }
+
+      match /opgavetyper/{id} {
+        allow read, delete: if eget();
+        allow create, update: if eget()
+          && felter(['navn', 'arkiveret'], ['navn', 'arkiveret'])
+          && request.resource.data.navn is string
+          && request.resource.data.navn.size() > 0
+          && request.resource.data.arkiveret is bool;
+      }
+
+      match /registreringer/{id} {
+        allow read, delete: if eget();
+        allow create, update: if eget()
+          && felter(['kundeId', 'opgavetypeId', 'start', 'slut', 'timepris'],
+                    ['kundeId', 'opgavetypeId', 'start', 'slut', 'timepris', 'note'])
+          && request.resource.data.kundeId is string
+          && request.resource.data.opgavetypeId is string
+          && request.resource.data.start is string
+          && request.resource.data.slut is string
+          && request.resource.data.slut > request.resource.data.start
+          && request.resource.data.timepris is number
+          && request.resource.data.timepris >= 0
+          && (!('note' in request.resource.data) || request.resource.data.note is string);
+      }
+    }
+  }
+}
