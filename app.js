@@ -1,6 +1,6 @@
 import {
   amountOf, dayKey, durationMs, formatDuration, formatKr, groupByDay, inPeriod, monthRange,
-  parseHours, parseNumber, summarize, toCSV, validateEntry,
+  parseHours, parseNumber, summarize, toCSV, validateBackup, validateEntry,
 } from './core.js';
 import { createStore, newId } from './store.js';
 
@@ -179,7 +179,42 @@ function visIndstillinger() {
     ),
     h('div', { class: 'knapper' }, h('button', { class: 'knap sekundaer', onclick: () => redigerType() }, 'Tilføj opgavetype')),
     arkivSektion(state.opgavetyper),
+
+    h('h2', {}, 'Backup'),
+    h('p', { class: 'hjaelp' }, 'Data ligger kun på denne enhed. Gem en backup en gang imellem, fx i Filer eller iCloud Drive.'),
+    h('div', { class: 'knapper side' },
+      h('button', { class: 'knap sekundaer', onclick: eksporterBackup }, 'Eksportér'),
+      h('button', { class: 'knap sekundaer', onclick: () => backupFil.click() }, 'Importér'),
+    ),
+    backupBesked,
   ];
+}
+
+const backupBesked = h('p', { class: 'fejl' });
+const backupFil = h('input', { type: 'file', accept: '.json,application/json', onchange: importerBackup });
+
+function eksporterBackup() {
+  downloadFile(`arbejdstid-backup-${dayKey(new Date())}.json`, JSON.stringify(state, null, 2), 'application/json');
+}
+
+async function importerBackup() {
+  const fil = backupFil.files[0];
+  backupFil.value = '';
+  backupBesked.textContent = '';
+  if (!fil) return;
+  let r;
+  try {
+    r = validateBackup(JSON.parse(await fil.text()));
+  } catch {
+    r = { ok: false, fejl: 'Filen kunne ikke læses som backup' };
+  }
+  if (!r.ok) {
+    backupBesked.textContent = r.fejl;
+    return;
+  }
+  if (!confirm('Dette erstatter alle nuværende data. Fortsæt?')) return;
+  state = r.data;
+  commit();
 }
 
 // --- Registreringsformular (ny manuel og redigering) ----------------------
