@@ -269,3 +269,8 @@ test('fejlTekst oversætter Firebase-fejl til dansk', () => {
   assert.equal(fejlTekst('permission-denied'), 'Din adgang er fjernet.');
   assert.equal(fejlTekst('noget-andet'), 'Noget gik galt. Prøv igen.');
 });
+
+test('forskel ser et udefineret felt som fraværende', () => {
+  const ur = { kundeId: 'a', opgavetypeId: 't', start: 's' };
+  assert.deepEqual(forskel({ ...tom(), ur: { ...ur, note: undefined } }, { ...tom(), ur }), []);
+});

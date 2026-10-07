@@ -168,7 +168,7 @@ function rens(samling, { id, ...data }) {
 function fast(v) {
   if (Array.isArray(v)) return `[${v.map(fast).join(',')}]`;
   if (v && typeof v === 'object') {
-    return `{${Object.keys(v).sort().map((n) => `${JSON.stringify(n)}:${fast(v[n])}`).join(',')}}`;
+    return `{${Object.keys(v).filter((n) => v[n] !== undefined).sort().map((n) => `${JSON.stringify(n)}:${fast(v[n])}`).join(',')}}`;
   }
   return JSON.stringify(v ?? null);
 }
