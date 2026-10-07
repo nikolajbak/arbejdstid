@@ -1,4 +1,6 @@
-import { formatKr, parseNumber } from './core.js';
+import {
+  dayKey, durationMs, formatDuration, formatKr, parseHours, parseNumber, validateEntry,
+} from './core.js';
 import { createStore, newId } from './store.js';
 
 const store = createStore();
@@ -27,7 +29,7 @@ function h(tag, attrs = {}, ...boern) {
     if (v === false || v == null) continue;
     if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
     else if (k === 'class') el.className = v;
-    else if (k in el && typeof v !== 'string') el[k] = v;
+    else if (k === 'value' || (k in el && typeof v !== 'string')) el[k] = v;
     else el.setAttribute(k, v === true ? '' : v);
   }
   for (const b of boern.flat()) {
@@ -179,10 +181,209 @@ function visIndstillinger() {
   ];
 }
 
+// --- Registreringsformular (ny manuel og redigering) ----------------------
+
+const p2 = (n) => String(n).padStart(2, '0');
+const klokken = (iso) => { const d = new Date(iso); return `${p2(d.getHours())}:${p2(d.getMinutes())}`; };
+const lokalTid = (dato, tid) => new Date(`${dato}T${tid}`).toISOString();
+const kundePaa = (id) => state.kunder.find((k) => k.id === id);
+const navnPaa = (liste, id) => liste.find((x) => x.id === id)?.navn ?? '(slettet)';
+
+// Aktive valgmuligheder plus den aktuelle, selvom den er arkiveret.
+function vaelger(liste, valgt, tomTekst) {
+  const muligheder = liste.filter((x) => !x.arkiveret || x.id === valgt);
+  return h('select', {},
+    h('option', { value: '' }, tomTekst),
+    muligheder.map((x) => h('option', { value: x.id, selected: x.id === valgt }, x.navn)),
+  );
+}
+
+function sidsteValg() {
+  try { return JSON.parse(localStorage.getItem('arbejdstid.sidste')) ?? {}; } catch { return {}; }
+}
+
+function huskValg(kundeId, opgavetypeId) {
+  try { localStorage.setItem('arbejdstid.sidste', JSON.stringify({ kundeId, opgavetypeId })); } catch {}
+}
+
+function registreringsArk(entry) {
+  const ny = !entry;
+  const sidste = sidsteValg();
+  const kunde = vaelger(state.kunder, entry?.kundeId ?? sidste.kundeId, 'Vælg kunde');
+  const type = vaelger(state.opgavetyper, entry?.opgavetypeId ?? sidste.opgavetypeId, 'Vælg opgavetype');
+  const dato = h('input', { type: 'date', value: dayKey(entry?.start ?? new Date()) });
+  const start = h('input', { type: 'time', value: entry ? klokken(entry.start) : '09:00' });
+  const slut = h('input', { type: 'time', value: entry ? klokken(entry.slut) : '' });
+  const timer = h('input', { inputmode: 'decimal', placeholder: 'fx 2,5', autocomplete: 'off' });
+  const pris = h('input', { inputmode: 'decimal', value: entry ? String(entry.timepris).replace('.', ',') : '' });
+  const note = h('textarea', { value: entry?.note ?? '', placeholder: 'Valgfri' });
+  const fejl = h('p', { class: 'fejl' });
+
+  let medTimer = ny;
+  const startSlut = h('div', { class: 'to-kolonner' }, felt('Start', start), felt('Slut', slut));
+  const antal = felt('Antal timer', timer);
+  const segment = ny && h('div', { class: 'segment' },
+    h('button', { type: 'button', onclick: () => skiftMode(true) }, 'Antal timer'),
+    h('button', { type: 'button', onclick: () => skiftMode(false) }, 'Start og slut'),
+  );
+  function skiftMode(t) {
+    medTimer = t;
+    antal.hidden = !t;
+    startSlut.hidden = t;
+    if (segment) [...segment.children].forEach((b, i) => b.setAttribute('aria-pressed', String((i === 0) === t)));
+  }
+
+  function gem(e) {
+    e.preventDefault();
+    fejl.textContent = '';
+    if (!kunde.value) return (fejl.textContent = 'Vælg en kunde');
+    if (!type.value) return (fejl.textContent = 'Vælg en opgavetype');
+    if (!dato.value) return (fejl.textContent = 'Vælg en dato');
+    let s;
+    let sl;
+    if (medTimer) {
+      const t = parseHours(timer.value);
+      if (t === null) return (fejl.textContent = 'Skriv antal timer, fx 2,5');
+      s = lokalTid(dato.value, '09:00');
+      sl = new Date(new Date(s).getTime() + t * 3600000).toISOString();
+    } else {
+      if (!start.value || !slut.value) return (fejl.textContent = 'Udfyld start og slut');
+      s = lokalTid(dato.value, start.value);
+      sl = lokalTid(dato.value, slut.value);
+    }
+    const f = validateEntry({ start: s, slut: sl });
+    if (f) return (fejl.textContent = f);
+    let timepris;
+    if (ny) timepris = kundePaa(kunde.value)?.timepris ?? 0;
+    else {
+      timepris = parseNumber(pris.value);
+      if (timepris === null) return (fejl.textContent = 'Skriv en gyldig timepris');
+    }
+    const data = { kundeId: kunde.value, opgavetypeId: type.value, start: s, slut: sl, timepris, note: note.value.trim() };
+    if (ny) state.registreringer.push({ id: newId(), ...data });
+    else Object.assign(entry, data);
+    huskValg(kunde.value, type.value);
+    lukArk();
+    commit();
+  }
+
+  function slet() {
+    if (!confirm('Slet denne registrering?')) return;
+    state.registreringer = state.registreringer.filter((r) => r !== entry);
+    lukArk();
+    commit();
+  }
+
+  aabnArk(
+    h('form', { onsubmit: gem },
+      h('h3', {}, ny ? 'Tilføj tid' : 'Redigér registrering'),
+      felt('Kunde', kunde),
+      felt('Opgavetype', type),
+      felt('Dato', dato),
+      segment,
+      antal,
+      startSlut,
+      !ny && felt('Timepris i kr', pris),
+      felt('Note', note),
+      fejl,
+      h('div', { class: 'knapper' },
+        h('button', { class: 'knap', type: 'submit' }, 'Gem'),
+        !ny && h('button', { class: 'knap fare', type: 'button', onclick: slet }, 'Slet registrering'),
+        h('button', { class: 'knap sekundaer', type: 'button', onclick: lukArk }, 'Annullér'),
+      ),
+    ),
+  );
+  skiftMode(medTimer);
+}
+
+// --- Tid ------------------------------------------------------------------
+
+function urTekst(start) {
+  const ms = Math.max(0, Date.now() - new Date(start));
+  const sek = Math.floor(ms / 1000) % 60;
+  return `${formatDuration(ms)}:${p2(sek)}`;
+}
+
+function startUr(kundeId, opgavetypeId, note) {
+  state.ur = { kundeId, opgavetypeId, note, start: new Date().toISOString() };
+  huskValg(kundeId, opgavetypeId);
+  commit();
+}
+
+function stopUr() {
+  const ur = state.ur;
+  state.registreringer.push({
+    id: newId(),
+    kundeId: ur.kundeId,
+    opgavetypeId: ur.opgavetypeId,
+    start: ur.start,
+    slut: new Date().toISOString(),
+    timepris: kundePaa(ur.kundeId)?.timepris ?? 0,
+    note: ur.note ?? '',
+  });
+  state.ur = null;
+  commit();
+}
+
+function visTid() {
+  if (!aktive(state.kunder).length && !state.ur) {
+    return h('div', { class: 'kort' },
+      h('p', { class: 'tom' }, 'Tilføj først en kunde med en timepris.'),
+      h('div', { class: 'form-kort' }, h('button', { class: 'knap', onclick: () => skiftFane('indstillinger') }, 'Gå til Indstillinger')),
+    );
+  }
+
+  if (state.ur) {
+    const ur = state.ur;
+    return [
+      h('div', { class: 'kort' },
+        h('div', { class: 'ur' },
+          h('div', { class: 'tid', id: 'ur-tid' }, urTekst(ur.start)),
+          h('div', { class: 'hvad' }, h('span', { class: 'prik' }),
+            `${navnPaa(state.kunder, ur.kundeId)} · ${navnPaa(state.opgavetyper, ur.opgavetypeId)}`),
+          ur.note && h('div', { class: 'hvad' }, ur.note),
+          h('div', { class: 'hvad' }, `Startet ${klokken(ur.start)}`),
+        ),
+        h('div', { class: 'form-kort' },
+          h('button', { class: 'knap', onclick: stopUr }, 'Stop og gem'),
+          h('div', { class: 'knapper' },
+            h('button', { class: 'knap fare', onclick: () => { if (confirm('Annullér uret uden at gemme?')) { state.ur = null; commit(); } } }, 'Annullér'),
+          ),
+        ),
+      ),
+    ];
+  }
+
+  const sidste = sidsteValg();
+  const kunde = vaelger(aktive(state.kunder), sidste.kundeId, 'Vælg kunde');
+  const type = vaelger(aktive(state.opgavetyper), sidste.opgavetypeId, 'Vælg opgavetype');
+  const note = h('input', { placeholder: 'Valgfri', autocomplete: 'off' });
+  const startKnap = h('button', { class: 'knap', type: 'submit' }, 'Start');
+  const opdater = () => { startKnap.disabled = !kunde.value || !type.value; };
+  kunde.addEventListener('change', opdater);
+  type.addEventListener('change', opdater);
+  opdater();
+
+  return [
+    h('form', { class: 'kort form-kort', onsubmit: (e) => { e.preventDefault(); startUr(kunde.value, type.value, note.value.trim()); } },
+      felt('Kunde', kunde),
+      felt('Opgavetype', type),
+      felt('Note', note),
+      h('div', { class: 'knapper' }, startKnap),
+    ),
+    h('div', { class: 'knapper' }, h('button', { class: 'knap sekundaer', onclick: () => registreringsArk() }, 'Tilføj tid manuelt')),
+  ];
+}
+
+setInterval(() => {
+  const el = document.getElementById('ur-tid');
+  if (el && state.ur) el.textContent = urTekst(state.ur.start);
+}, 1000);
+
 // --- Rendering ------------------------------------------------------------
 
 const VISNINGER = {
-  tid: () => h('p', { class: 'tom' }, 'Kommer snart'),
+  tid: visTid,
   registreringer: () => h('p', { class: 'tom' }, 'Kommer snart'),
   oversigt: () => h('p', { class: 'tom' }, 'Kommer snart'),
   indstillinger: visIndstillinger,
