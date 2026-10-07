@@ -1,11 +1,20 @@
 import {
-  amountOf, dayKey, durationMs, formatDuration, formatKr, groupByDay, inPeriod, monthRange,
+  amountOf, dayKey, fejlTekst, durationMs, formatDuration, formatKr, groupByDay, inPeriod, monthRange,
   parseHours, parseNumber, summarize, toCSV, validateBackup, validateEntry,
 } from './core.js';
-import { createStore, newId } from './store.js';
+import { newId } from './store.js';
+import {
+  lytKonto, logInd, opretKonto, sendBekraeftelse, nulstilKode, opdaterBruger, logUd,
+  hentGodkendelse, sikrProfil,
+} from './konto.js';
+import { startSky } from './sky.js';
 
-const store = createStore();
-let state = store.load();
+// Brugerens data. null indtil de er hentet efter login.
+let state = null;
+let sky = null;
+let bruger = null;
+let godk = null;
+let ventende = false;
 
 const FANER = {
   tid: 'Tid',
@@ -41,7 +50,7 @@ function h(tag, attrs = {}, ...boern) {
 }
 
 function commit() {
-  store.save(state);
+  sky.gem(state);
   render();
 }
 
@@ -187,6 +196,10 @@ function visIndstillinger() {
       h('button', { class: 'knap sekundaer', onclick: () => backupFil.click() }, 'Importér'),
     ),
     backupBesked,
+
+    h('h2', {}, 'Konto'),
+    h('div', { class: 'kort' }, h('div', { class: 'raekke' }, h('span', { class: 'hoved' }, h('span', { class: 'titel' }, bruger.email)))),
+    h('div', { class: 'knapper' }, h('button', { class: 'knap fare', onclick: logUdMedAdvarsel }, 'Log ud')),
   ];
 }
 
@@ -533,6 +546,143 @@ function visOversigt() {
   ];
 }
 
+// --- Login ----------------------------------------------------------------
+
+// Viser en skærm uden for appen (login m.m.), uden bundnavigation.
+function visUde(titel, ...boern) {
+  document.body.classList.add('ude');
+  document.getElementById('titel').textContent = titel;
+  let besked = null;
+  try {
+    besked = sessionStorage.getItem('arbejdstid.besked');
+    sessionStorage.removeItem('arbejdstid.besked');
+  } catch {}
+  indhold.replaceChildren(...[besked && h('p', { class: 'fejl' }, besked), ...boern].flat(Infinity).filter(Boolean));
+}
+
+// Kører en handling og viser en eventuel fejl på dansk i `besked`.
+const proev = (besked, fn) => async (e) => {
+  e?.preventDefault();
+  besked.textContent = '';
+  try {
+    await fn();
+  } catch (err) {
+    besked.textContent = fejlTekst(err.code);
+  }
+};
+
+function visLogin() {
+  const email = h('input', { type: 'email', autocomplete: 'username', inputmode: 'email', autocapitalize: 'off', required: true });
+  const kode = h('input', { type: 'password', autocomplete: 'current-password', required: true });
+  const fejl = h('p', { class: 'fejl' });
+  const info = h('p', { class: 'hjaelp' });
+  visUde('Arbejdstid',
+    h('form', { class: 'kort form-kort', onsubmit: proev(fejl, () => logInd(email.value, kode.value)) },
+      felt('E-mail', email),
+      felt('Adgangskode', kode),
+      fejl,
+      h('div', { class: 'knapper' },
+        h('button', { class: 'knap', type: 'submit' }, 'Log ind'),
+        h('button', { class: 'knap sekundaer', type: 'button', onclick: proev(fejl, () => opretKonto(email.value, kode.value)) }, 'Opret konto'),
+      ),
+    ),
+    h('div', { class: 'knapper' },
+      h('button', {
+        class: 'knap fare',
+        type: 'button',
+        onclick: proev(fejl, async () => {
+          info.textContent = '';
+          await nulstilKode(email.value);
+          info.textContent = 'Hvis e-mailen findes, har vi sendt et link.';
+        }),
+      }, 'Vælg eller nulstil adgangskode'),
+    ),
+    info,
+  );
+}
+
+function visBekraeft(user) {
+  const besked = h('p', { class: 'hjaelp' });
+  visUde('Bekræft e-mail',
+    h('p', {}, `Bekræft din e-mail via linket, vi sendte til ${user.email}`),
+    besked,
+    h('div', { class: 'knapper' },
+      h('button', {
+        class: 'knap',
+        onclick: proev(besked, async () => {
+          const u = await opdaterBruger();
+          if (u.emailVerified) efterLogin(u);
+          else besked.textContent = 'E-mailen er ikke bekræftet endnu.';
+        }),
+      }, 'Jeg har bekræftet'),
+      h('button', {
+        class: 'knap sekundaer',
+        onclick: proev(besked, async () => {
+          await sendBekraeftelse();
+          besked.textContent = 'Vi har sendt en ny mail.';
+        }),
+      }, 'Send igen'),
+      h('button', { class: 'knap fare', onclick: () => logUd() }, 'Log ud'),
+    ),
+  );
+}
+
+function visIkkeInviteret() {
+  visUde('Arbejdstid',
+    h('p', {}, 'Denne e-mail er ikke inviteret. Spørg den, der administrerer appen.'),
+    h('div', { class: 'knapper' }, h('button', { class: 'knap fare', onclick: () => logUd() }, 'Log ud')),
+  );
+}
+
+async function efterLogin(user) {
+  if (!user) return visLogin();
+  if (!user.emailVerified) return visBekraeft(user);
+  visUde('Arbejdstid', h('p', { class: 'tom' }, 'Henter …'));
+  try {
+    // Et adgangsbevis fra før bekræftelsen mangler e-mail_verified, som reglerne kræver.
+    if (!(await user.getIdTokenResult()).claims.email_verified) await user.getIdToken(true);
+    godk = await hentGodkendelse(user.email);
+    if (!godk) return visIkkeInviteret();
+    await sikrProfil(user, godk);
+  } catch (err) {
+    return visUde('Arbejdstid',
+      h('p', { class: 'fejl' }, err.code === 'unavailable' ? fejlTekst('auth/network-request-failed') : fejlTekst(err.code)),
+      h('div', { class: 'knapper' }, h('button', { class: 'knap', onclick: () => efterLogin(user) }, 'Prøv igen')),
+    );
+  }
+  bruger = user;
+  sky = startSky(user.uid, {
+    data(d) {
+      const foerste = !state;
+      state = d;
+      if (foerste) document.body.classList.remove('ude');
+      render();
+    },
+    status(v) {
+      ventende = v;
+      document.getElementById('sync').hidden = !v;
+    },
+    fejl: skyFejl,
+  });
+}
+
+// En lytter afvist af reglerne betyder, at adgangen er fjernet.
+function skyFejl(err, hvor) {
+  if (hvor === 'lyt' && err.code === 'permission-denied') {
+    try { sessionStorage.setItem('arbejdstid.besked', fejlTekst('permission-denied')); } catch {}
+    sky.stop();
+    logUd();
+    return;
+  }
+  console.error(err);
+}
+
+function logUdMedAdvarsel() {
+  if (ventende && !confirm('Du har ændringer, der ikke er synkroniseret. Log ud alligevel?')) return;
+  sky.stop();
+  logUd();
+}
+
 // --- Rendering ------------------------------------------------------------
 
 const VISNINGER = {
@@ -543,18 +693,17 @@ const VISNINGER = {
 };
 
 function render() {
+  if (!state) return;
   document.getElementById('titel').textContent = FANER[fane];
   for (const b of document.querySelectorAll('.faner button')) {
     if (b.dataset.fane === fane) b.setAttribute('aria-current', 'page');
     else b.removeAttribute('aria-current');
   }
-  const advarsel = store.beskadiget && h('p', { class: 'fejl' },
-    'De gemte data kunne ikke læses, så appen er startet forfra. De gamle data er lagt til side og ikke slettet. Importér en backup under Indstillinger, hvis du har en.');
-  indhold.replaceChildren(...[advarsel, VISNINGER[fane]()].flat(Infinity).filter(Boolean));
+  indhold.replaceChildren(...[VISNINGER[fane]()].flat(Infinity).filter(Boolean));
 }
 
 for (const b of document.querySelectorAll('.faner button')) {
   b.addEventListener('click', () => skiftFane(b.dataset.fane));
 }
 
-render();
+lytKonto(efterLogin);

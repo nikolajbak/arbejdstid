@@ -51,6 +51,11 @@ body {
   padding: calc(env(safe-area-inset-top) + 12px) var(--gutter) 10px;
 }
 
+.topbar { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+#sync { color: var(--muted); font-size: 13px; white-space: nowrap; }
+#sync[hidden] { display: none; }
+body.ude .faner { display: none; }
+
 .topbar h1 { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
 
 main {

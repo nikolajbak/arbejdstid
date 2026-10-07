@@ -8,6 +8,7 @@ const efterNavn = (a, b) => a.navn.localeCompare(b.navn, 'da');
 
 // Holder brugerens data i hukommelsen i samme form som appen altid har brugt,
 // og skriver kun de dokumenter, der er ændret. Virker også uden net.
+// fejl(err, 'lyt' | 'skriv')
 export function startSky(uid, { data, status, fejl }) {
   const profil = doc(db, 'brugere', uid);
   // Seneste kendte udgave af hver del. undefined = ikke modtaget endnu.
@@ -45,12 +46,12 @@ export function startSky(uid, { data, status, fejl }) {
       del.ur = s.data()?.ur ?? null;
       meld('profil', s.metadata);
       opdater();
-    }, fejl),
+    }, (e) => fejl(e, 'lyt')),
     ...SAMLINGER.map((navn) => onSnapshot(collection(profil, navn), medMetadata, (s) => {
       del[navn] = s.docs.map((d) => ({ id: d.id, ...d.data() }));
       meld(navn, s.metadata);
       opdater();
-    }, fejl)),
+    }, (e) => fejl(e, 'lyt'))),
   ];
 
   function gem(tilstand) {
@@ -69,7 +70,7 @@ export function startSky(uid, { data, status, fejl }) {
         else batch.update(profil, { ur: op.ur });
       }
       // Afventes ikke: uden net bliver løftet først indfriet, når der er forbindelse.
-      batch.commit().catch(fejl);
+      batch.commit().catch((e) => fejl(e, 'skriv'));
     }
   }
 
