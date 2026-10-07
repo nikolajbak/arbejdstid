@@ -1,6 +1,6 @@
 import {
-  amountOf, dayKey, durationMs, formatDuration, formatKr, groupByDay, parseHours, parseNumber,
-  validateEntry,
+  amountOf, dayKey, durationMs, formatDuration, formatKr, groupByDay, inPeriod, monthRange,
+  parseHours, parseNumber, summarize, toCSV, validateEntry,
 } from './core.js';
 import { createStore, newId } from './store.js';
 
@@ -414,12 +414,96 @@ function visRegistreringer() {
   ]);
 }
 
+// --- Filer ----------------------------------------------------------------
+
+// Del-arket på iPhone, ellers almindelig download.
+async function downloadFile(navn, indhold, type) {
+  const fil = new File([indhold], navn, { type });
+  if (navigator.canShare?.({ files: [fil] })) {
+    try {
+      await navigator.share({ files: [fil] });
+      return;
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+    }
+  }
+  const url = URL.createObjectURL(fil);
+  const a = h('a', { href: url, download: navn });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// --- Oversigt -------------------------------------------------------------
+
+let periode = { valg: 'denne', fra: '', til: '' };
+
+function periodeGraenser() {
+  if (periode.valg === 'denne') return monthRange(new Date(), 0);
+  if (periode.valg === 'sidste') return monthRange(new Date(), -1);
+  if (!periode.fra || !periode.til) return null;
+  const from = new Date(`${periode.fra}T00:00`);
+  const to = new Date(`${periode.til}T00:00`);
+  to.setDate(to.getDate() + 1); // til-datoen er inklusiv i brugerfladen
+  return to > from ? { from, to } : null;
+}
+
+function visOversigt() {
+  const valg = h('select', { onchange: (e) => { periode.valg = e.target.value; render(); } },
+    [['denne', 'Denne måned'], ['sidste', 'Sidste måned'], ['egen', 'Vælg periode']]
+      .map(([v, t]) => h('option', { value: v, selected: periode.valg === v }, t)),
+  );
+  const top = [felt('Periode', valg)];
+  if (periode.valg === 'egen') {
+    const fra = h('input', { type: 'date', value: periode.fra, onchange: (e) => { periode.fra = e.target.value; render(); } });
+    const til = h('input', { type: 'date', value: periode.til, onchange: (e) => { periode.til = e.target.value; render(); } });
+    top.push(h('div', { class: 'to-kolonner' }, felt('Fra', fra), felt('Til og med', til)));
+  }
+
+  const g = periodeGraenser();
+  if (!g) return [...top, h('p', { class: 'tom' }, 'Vælg en fra- og til-dato')];
+
+  const entries = state.registreringer.filter((e) => inPeriod(e, g.from, g.to));
+  if (!entries.length) return [...top, h('p', { class: 'tom' }, 'Ingen registreringer i perioden')];
+
+  const s = summarize(entries, state.kunder, state.opgavetyper);
+  const sidsteDag = new Date(g.to.getTime() - 86400000);
+  const filnavn = `arbejdstid-${dayKey(g.from)}_${dayKey(sidsteDag)}.csv`;
+
+  return [
+    ...top,
+    h('h2', {}, 'Pr. kunde'),
+    h('div', { class: 'kort' },
+      s.kunder.map((k) => h('details', { class: 'kunde' },
+        h('summary', { class: 'raekke' },
+          h('span', { class: 'pil', 'aria-hidden': 'true' }, '›'),
+          h('span', { class: 'hoved' }, h('span', { class: 'titel' }, k.navn)),
+          h('span', { class: 'tal' }, h('span', { class: 'titel' }, formatKr(k.kr)), h('span', { class: 'under' }, formatDuration(k.ms))),
+        ),
+        k.typer.map((t) => h('div', { class: 'raekke under-raekke' },
+          h('span', { class: 'hoved' }, t.navn),
+          h('span', { class: 'tal' }, `${formatDuration(t.ms)} · ${formatKr(t.kr)}`),
+        )),
+      )),
+      h('div', { class: 'total raekke' },
+        h('span', {}, 'I alt', h('span', { class: 'under' }, formatDuration(s.ms))),
+        h('span', { class: 'stor' }, formatKr(s.kr)),
+      ),
+    ),
+    h('p', { class: 'hjaelp' }, 'Beløb er ekskl. moms.'),
+    h('div', { class: 'knapper' },
+      h('button', { class: 'knap', onclick: () => downloadFile(filnavn, toCSV(entries, state.kunder, state.opgavetyper), 'text/csv;charset=utf-8') }, 'Eksportér CSV'),
+    ),
+  ];
+}
+
 // --- Rendering ------------------------------------------------------------
 
 const VISNINGER = {
   tid: visTid,
   registreringer: visRegistreringer,
-  oversigt: () => h('p', { class: 'tom' }, 'Kommer snart'),
+  oversigt: visOversigt,
   indstillinger: visIndstillinger,
 };
 
