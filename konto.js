@@ -51,6 +51,10 @@ export async function hentGodkendelse(email) {
   return s.exists() ? s.data() : null;
 }
 
+// Følger brugerens egen godkendelse, så en fjernet adgang opdages med det samme.
+export const lytGodkendelse = (email, cb) =>
+  onSnapshot(godkendelse(email), (s) => cb(s.exists() ? s.data() : null), () => {});
+
 // Markerer kontoen som oprettet og opretter profilen ved første login.
 export async function sikrProfil(user, godk) {
   if (!godk.uid) await updateDoc(godkendelse(user.email), { uid: user.uid });

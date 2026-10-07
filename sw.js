@@ -1,5 +1,6 @@
 // Hæv versionen ved hver ny udgivelse, så telefonerne henter de nye filer.
-const CACHE = 'arbejdstid-v1';
+const CACHE = 'arbejdstid-v2';
+const FIREBASE = 'https://www.gstatic.com/firebasejs/13.0.0/';
 const FILER = [
   './',
   'index.html',
@@ -7,10 +8,15 @@ const FILER = [
   'app.js',
   'core.js',
   'store.js',
+  'firebase-config.js',
+  'firebase.js',
+  'konto.js',
+  'sky.js',
   'manifest.webmanifest',
   'icons/icon-192.png',
   'icons/icon-512.png',
   'icons/apple-touch-icon.png',
+  ...['app', 'auth', 'firestore'].map((f) => `${FIREBASE}firebase-${f}.js`),
 ];
 
 self.addEventListener('install', (e) => {
@@ -27,5 +33,8 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
+  // Kun appens egne filer og Firebase-koden. Alt andet (fx databasen) går direkte til nettet.
+  const url = e.request.url;
+  if (!url.startsWith(self.location.origin + '/') && !url.startsWith(FIREBASE)) return;
   e.respondWith(caches.match(e.request, { ignoreSearch: true }).then((svar) => svar || fetch(e.request)));
 });

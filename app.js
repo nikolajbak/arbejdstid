@@ -1,11 +1,11 @@
 import {
-  amountOf, dayKey, fejlTekst, durationMs, formatDuration, formatKr, groupByDay, inPeriod, monthRange,
+  amountOf, dayKey, fejlTekst, flet, normaliserEmail, durationMs, formatDuration, formatKr, groupByDay, inPeriod, monthRange,
   parseHours, parseNumber, summarize, toCSV, validateBackup, validateEntry,
 } from './core.js';
-import { newId } from './store.js';
+import { createStore, newId } from './store.js';
 import {
   lytKonto, logInd, opretKonto, sendBekraeftelse, nulstilKode, opdaterBruger, logUd,
-  hentGodkendelse, sikrProfil,
+  hentGodkendelse, lytGodkendelse, sikrProfil, lytBrugere, inviter, fjernAdgang, saetAdmin,
 } from './konto.js';
 import { startSky } from './sky.js';
 
@@ -15,6 +15,8 @@ let sky = null;
 let bruger = null;
 let godk = null;
 let ventende = false;
+// Brugerlisten, kun for administratorer.
+let brugerliste = [];
 
 const FANER = {
   tid: 'Tid',
@@ -190,12 +192,14 @@ function visIndstillinger() {
     arkivSektion(state.opgavetyper),
 
     h('h2', {}, 'Backup'),
-    h('p', { class: 'hjaelp' }, 'Data ligger kun på denne enhed. Gem en backup en gang imellem, fx i Filer eller iCloud Drive.'),
+    h('p', { class: 'hjaelp' }, 'Data gemmes på din konto. En backup er en ekstra sikkerhed, fx i Filer eller iCloud Drive.'),
     h('div', { class: 'knapper side' },
       h('button', { class: 'knap sekundaer', onclick: eksporterBackup }, 'Eksportér'),
       h('button', { class: 'knap sekundaer', onclick: () => backupFil.click() }, 'Importér'),
     ),
     backupBesked,
+
+    brugerSektion(),
 
     h('h2', {}, 'Konto'),
     h('div', { class: 'kort' }, h('div', { class: 'raekke' }, h('span', { class: 'hoved' }, h('span', { class: 'titel' }, bruger.email)))),
@@ -207,7 +211,7 @@ const backupBesked = h('p', { class: 'fejl' });
 const backupFil = h('input', { type: 'file', accept: '.json,application/json', onchange: importerBackup });
 
 function eksporterBackup() {
-  downloadFile(`arbejdstid-backup-${dayKey(new Date())}.json`, JSON.stringify(state, null, 2), 'application/json');
+  downloadFile(`arbejdstid-backup-${dayKey(new Date())}.json`, JSON.stringify({ version: 1, ...state }, null, 2), 'application/json');
 }
 
 async function importerBackup() {
@@ -226,8 +230,72 @@ async function importerBackup() {
     return;
   }
   if (!confirm('Dette erstatter alle nuværende data. Fortsæt?')) return;
-  state = r.data;
+  const { version, ...data } = r.data;
+  state = data;
   commit();
+}
+
+// --- Brugere (kun administratorer) ----------------------------------------
+
+const brugerBesked = h('p', { class: 'fejl' });
+const kunneIkkeGemme = () => { brugerBesked.textContent = 'Ændringen kunne ikke gemmes. Prøv igen.'; };
+
+function redigerBruger(b) {
+  aabnArk(
+    h('h3', {}, b.email),
+    h('p', { class: 'hjaelp' }, [b.uid ? 'Aktiv' : 'Inviteret', b.admin && 'Administrator'].filter(Boolean).join(' · ')),
+    h('div', { class: 'knapper' },
+      h('button', {
+        class: 'knap sekundaer',
+        onclick: () => { lukArk(); saetAdmin(b.email, !b.admin).catch(kunneIkkeGemme); },
+      }, b.admin ? 'Fjern som administrator' : 'Gør til administrator'),
+      h('button', {
+        class: 'knap fare',
+        onclick: () => {
+          if (!confirm(`Fjern adgangen for ${b.email}? Brugerens data bevares.`)) return;
+          lukArk();
+          fjernAdgang(b.email).catch(kunneIkkeGemme);
+        },
+      }, 'Fjern adgang'),
+      h('button', { class: 'knap sekundaer', onclick: lukArk }, 'Luk'),
+    ),
+  );
+}
+
+function brugerSektion() {
+  if (!godk?.admin) return null;
+  const egen = normaliserEmail(bruger.email);
+  const email = h('input', { type: 'email', inputmode: 'email', autocapitalize: 'off', autocomplete: 'off', placeholder: 'navn@eksempel.dk' });
+  const status = (b) => [b.uid ? 'Aktiv' : 'Inviteret', b.admin && 'Administrator'].filter(Boolean).join(' · ');
+  return [
+    h('h2', {}, 'Brugere'),
+    h('div', { class: 'kort' },
+      brugerliste.map((b) => {
+        const indre = [
+          h('span', { class: 'hoved' }, h('span', { class: 'titel' }, b.email), h('span', { class: 'under' }, status(b))),
+        ];
+        return b.email === egen
+          ? h('div', { class: 'raekke' }, ...indre)
+          : h('button', { class: 'raekke', onclick: () => redigerBruger(b) }, ...indre);
+      }),
+    ),
+    h('form', {
+      onsubmit: (e) => {
+        e.preventDefault();
+        brugerBesked.textContent = '';
+        const ny = normaliserEmail(email.value);
+        if (!ny) { brugerBesked.textContent = 'Skriv en gyldig e-mail.'; return; }
+        if (brugerliste.some((b) => b.email === ny)) { brugerBesked.textContent = 'Den e-mail er allerede inviteret.'; return; }
+        inviter(ny).catch(kunneIkkeGemme);
+        email.value = '';
+      },
+    },
+      felt('Invitér med e-mail', email),
+      h('div', { class: 'knapper' }, h('button', { class: 'knap sekundaer', type: 'submit' }, 'Invitér')),
+    ),
+    brugerBesked,
+    h('p', { class: 'hjaelp' }, 'Fortæl selv den inviterede adressen på appen. Personen opretter en konto med den e-mail, du har inviteret.'),
+  ];
 }
 
 // --- Registreringsformular (ny manuel og redigering) ----------------------
@@ -549,15 +617,17 @@ function visOversigt() {
 // --- Login ----------------------------------------------------------------
 
 // Viser en skærm uden for appen (login m.m.), uden bundnavigation.
+// Besked, der skal overleve genindlæsningen ved log ud, fx "Din adgang er fjernet."
+let udeBesked = null;
+try {
+  udeBesked = sessionStorage.getItem('arbejdstid.besked');
+  sessionStorage.removeItem('arbejdstid.besked');
+} catch {}
+
 function visUde(titel, ...boern) {
   document.body.classList.add('ude');
   document.getElementById('titel').textContent = titel;
-  let besked = null;
-  try {
-    besked = sessionStorage.getItem('arbejdstid.besked');
-    sessionStorage.removeItem('arbejdstid.besked');
-  } catch {}
-  indhold.replaceChildren(...[besked && h('p', { class: 'fejl' }, besked), ...boern].flat(Infinity).filter(Boolean));
+  indhold.replaceChildren(...[udeBesked && h('p', { class: 'fejl' }, udeBesked), ...boern].flat(Infinity).filter(Boolean));
 }
 
 // Kører en handling og viser en eventuel fejl på dansk i `besked`.
@@ -651,12 +721,14 @@ async function efterLogin(user) {
     );
   }
   bruger = user;
+  udeBesked = null;
   sky = startSky(user.uid, {
     data(d) {
       const foerste = !state;
       state = d;
       if (foerste) document.body.classList.remove('ude');
       render();
+      if (foerste) tilbydOverfoersel();
     },
     status(v) {
       ventende = v;
@@ -664,16 +736,57 @@ async function efterLogin(user) {
     },
     fejl: skyFejl,
   });
+  // Firestore afbryder ikke kørende lyttere, når adgangen fjernes, så det
+  // opdages via brugerens eget dokument på listen over godkendte.
+  let lytterTilBrugere = false;
+  lytGodkendelse(user.email, (g) => {
+    if (!g) return adgangFjernet();
+    godk = g;
+    if (godk.admin && !lytterTilBrugere) {
+      lytterTilBrugere = true;
+      lytBrugere((liste) => {
+        brugerliste = liste;
+        if (fane === 'indstillinger') render();
+      }, () => {});
+    }
+    if (fane === 'indstillinger') render();
+  });
+}
+
+function adgangFjernet() {
+  try { sessionStorage.setItem('arbejdstid.besked', fejlTekst('permission-denied')); } catch {}
+  sky.stop();
+  logUd();
+}
+
+// Tilbyder én gang pr. telefon at flytte data fra før login ind på kontoen.
+function tilbydOverfoersel() {
+  let raa;
+  try {
+    if (localStorage.getItem('arbejdstid.overfoersel')) return;
+    raa = localStorage.getItem('arbejdstid.v1');
+  } catch {
+    return;
+  }
+  if (raa === null) return;
+  const lokal = createStore().load();
+  if (lokal.kunder.length || lokal.registreringer.length) {
+    const n = lokal.registreringer.length;
+    if (confirm(`Overfør ${n} ${n === 1 ? 'registrering' : 'registreringer'} fra denne telefon til din konto?`)) {
+      state = flet(lokal, state);
+      commit();
+      try {
+        localStorage.setItem(`arbejdstid.v1.overfoert-${Date.now()}`, raa);
+        localStorage.removeItem('arbejdstid.v1');
+      } catch {}
+    }
+  }
+  try { localStorage.setItem('arbejdstid.overfoersel', '1'); } catch {}
 }
 
 // En lytter afvist af reglerne betyder, at adgangen er fjernet.
 function skyFejl(err, hvor) {
-  if (hvor === 'lyt' && err.code === 'permission-denied') {
-    try { sessionStorage.setItem('arbejdstid.besked', fejlTekst('permission-denied')); } catch {}
-    sky.stop();
-    logUd();
-    return;
-  }
+  if (hvor === 'lyt' && err.code === 'permission-denied') return adgangFjernet();
   console.error(err);
 }
 
