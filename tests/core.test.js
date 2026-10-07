@@ -103,3 +103,55 @@ test('summarize viser ukendt kunde som (slettet)', () => {
   assert.equal(s.kunder[0].navn, '(slettet)');
   assert.equal(s.kunder[0].typer[0].navn, '(slettet)');
 });
+
+import { toCSV, validateBackup } from '../core.js';
+
+const HEADER = 'Dato;Start;Slut;Kunde;Opgavetype;Timer;Timepris;Beløb;Note';
+const csvKunder = [{ id: 'k1', navn: 'Gammel Kunde', timepris: 800, arkiveret: true }];
+const csvTyper = [{ id: 't1', navn: 'Møde' }];
+const csvEntry = (note = '', start = [2026, 9, 7, 9, 0], timer = 1.5) => {
+  const s = new Date(...start);
+  return { kundeId: 'k1', opgavetypeId: 't1', timepris: 800, note, start: s.toISOString(), slut: new Date(s.getTime() + timer * 3600000).toISOString() };
+};
+
+test('toCSV starter med BOM og header', () => {
+  const csv = toCSV([], csvKunder, csvTyper);
+  assert.ok(csv.startsWith('﻿' + HEADER));
+});
+
+test('toCSV række har dansk dato, tid, decimalkomma og arkiveret kundenavn', () => {
+  const linjer = toCSV([csvEntry()], csvKunder, csvTyper).split('\r\n');
+  assert.equal(linjer[1], '07-10-2026;09:00;10:30;Gammel Kunde;Møde;1,50;800,00;1200,00;');
+});
+
+test('toCSV sorterer ældste først', () => {
+  const linjer = toCSV([csvEntry('b', [2026, 9, 8, 9, 0]), csvEntry('a', [2026, 9, 7, 9, 0])], csvKunder, csvTyper).split('\r\n');
+  assert.ok(linjer[1].endsWith(';a'));
+  assert.ok(linjer[2].endsWith(';b'));
+});
+
+test('toCSV escaper semikolon, anførselstegn og linjeskift', () => {
+  const linje = toCSV([csvEntry('møde; "vigtigt"\nopfølgning')], csvKunder, csvTyper).split('\r\n').slice(1).join('\r\n');
+  assert.ok(linje.endsWith(';"møde; ""vigtigt""\nopfølgning"'), linje);
+});
+
+test('toCSV bruger ingen tusindtalsseparator', () => {
+  const linje = toCSV([csvEntry('', [2026, 9, 7, 0, 0], 2)], [{ id: 'k1', navn: 'K', timepris: 1000 }], csvTyper).split('\r\n')[1];
+  assert.ok(linje.includes(';2,00;800,00;1600,00;'), linje);
+  const dyr = { ...csvEntry('', [2026, 9, 7, 0, 0], 2), timepris: 1000 };
+  assert.ok(toCSV([dyr], csvKunder, csvTyper).includes(';1000,00;2000,00;'));
+});
+
+test('validateBackup afviser ugyldige værdier', () => {
+  for (const v of [null, {}, 'x', { version: 2, kunder: [], opgavetyper: [], registreringer: [] }, { version: 1, kunder: {}, opgavetyper: [], registreringer: [] }]) {
+    const r = validateBackup(v);
+    assert.equal(r.ok, false);
+    assert.equal(typeof r.fejl, 'string');
+  }
+});
+
+test('validateBackup accepterer gyldig backup og sætter ur til null', () => {
+  const r = validateBackup({ version: 1, kunder: [], opgavetyper: [], registreringer: [] });
+  assert.equal(r.ok, true);
+  assert.equal(r.data.ur, null);
+});

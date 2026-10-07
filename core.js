@@ -102,3 +102,37 @@ export function summarize(entries, kunder, opgavetyper) {
     kr,
   };
 }
+
+const p2 = (n) => String(n).padStart(2, '0');
+const klokken = (d) => `${p2(d.getHours())}:${p2(d.getMinutes())}`;
+const csvTal = (n) => n.toFixed(2).replace('.', ',');
+const csvFelt = (v) => {
+  const s = String(v ?? '');
+  return /[;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+
+export function toCSV(entries, kunder, opgavetyper) {
+  const linjer = ['Dato;Start;Slut;Kunde;Opgavetype;Timer;Timepris;Beløb;Note'];
+  for (const e of [...entries].sort((a, b) => new Date(a.start) - new Date(b.start))) {
+    const s = new Date(e.start);
+    linjer.push([
+      `${p2(s.getDate())}-${p2(s.getMonth() + 1)}-${s.getFullYear()}`,
+      klokken(s),
+      klokken(new Date(e.slut)),
+      navnPaa(kunder, e.kundeId),
+      navnPaa(opgavetyper, e.opgavetypeId),
+      csvTal(durationMs(e) / TIME_MS),
+      csvTal(e.timepris),
+      csvTal(amountOf(e)),
+      e.note,
+    ].map(csvFelt).join(';'));
+  }
+  return '﻿' + linjer.join('\r\n');
+}
+
+export function validateBackup(obj) {
+  const fejl = { ok: false, fejl: 'Filen kunne ikke læses som backup' };
+  if (!obj || typeof obj !== 'object' || obj.version !== 1) return fejl;
+  if (!['kunder', 'opgavetyper', 'registreringer'].every((k) => Array.isArray(obj[k]))) return fejl;
+  return { ok: true, data: { ...obj, ur: obj.ur ?? null } };
+}
