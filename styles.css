@@ -285,3 +285,5 @@ details.arkiv { margin-top: 12px; }
 details.arkiv > summary { color: var(--muted); font-size: 15px; padding: 8px 4px; cursor: pointer; }
 
 .hjaelp { color: var(--muted); font-size: 14px; margin: 8px 4px 0; }
+
+h2.dag { display: flex; justify-content: space-between; font-variant-numeric: tabular-nums; }

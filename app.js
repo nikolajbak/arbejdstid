@@ -1,5 +1,6 @@
 import {
-  dayKey, durationMs, formatDuration, formatKr, parseHours, parseNumber, validateEntry,
+  amountOf, dayKey, durationMs, formatDuration, formatKr, groupByDay, parseHours, parseNumber,
+  validateEntry,
 } from './core.js';
 import { createStore, newId } from './store.js';
 
@@ -250,6 +251,13 @@ function registreringsArk(entry) {
       if (!start.value || !slut.value) return (fejl.textContent = 'Udfyld start og slut');
       s = lokalTid(dato.value, start.value);
       sl = lokalTid(dato.value, slut.value);
+      // Slut før start betyder, at arbejdet gik over midnat.
+      if (slut.value < start.value) sl = new Date(new Date(sl).getTime() + 86400000).toISOString();
+      // Uændrede felter beholder deres præcise tid (med sekunder).
+      if (!ny && dato.value === dayKey(entry.start) && start.value === klokken(entry.start)) {
+        s = entry.start;
+        if (slut.value === klokken(entry.slut)) sl = entry.slut;
+      }
     }
     const f = validateEntry({ start: s, slut: sl });
     if (f) return (fejl.textContent = f);
@@ -380,11 +388,37 @@ setInterval(() => {
   if (el && state.ur) el.textContent = urTekst(state.ur.start);
 }, 1000);
 
+// --- Registreringer -------------------------------------------------------
+
+function dagOverskrift(dag) {
+  const t = new Date(`${dag}T12:00`).toLocaleDateString('da-DK', { weekday: 'long', day: 'numeric', month: 'long' });
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+function visRegistreringer() {
+  if (!state.registreringer.length) return h('p', { class: 'tom' }, 'Ingen registreringer endnu');
+  return groupByDay(state.registreringer).map((g) => [
+    h('h2', { class: 'dag' }, h('span', {}, dagOverskrift(g.dag)), h('span', {}, formatDuration(g.ms))),
+    h('div', { class: 'kort' },
+      g.entries.map((e) => h('button', { class: 'raekke', onclick: () => registreringsArk(e) },
+        h('span', { class: 'hoved' },
+          h('span', { class: 'titel' }, `${navnPaa(state.kunder, e.kundeId)} · ${navnPaa(state.opgavetyper, e.opgavetypeId)}`),
+          h('span', { class: 'under' }, `${klokken(e.start)}–${klokken(e.slut)}${e.note ? ` · ${e.note}` : ''}`),
+        ),
+        h('span', { class: 'tal' },
+          h('span', { class: 'titel' }, formatDuration(durationMs(e))),
+          h('span', { class: 'under' }, formatKr(amountOf(e))),
+        ),
+      )),
+    ),
+  ]);
+}
+
 // --- Rendering ------------------------------------------------------------
 
 const VISNINGER = {
   tid: visTid,
-  registreringer: () => h('p', { class: 'tom' }, 'Kommer snart'),
+  registreringer: visRegistreringer,
   oversigt: () => h('p', { class: 'tom' }, 'Kommer snart'),
   indstillinger: visIndstillinger,
 };
@@ -395,7 +429,7 @@ function render() {
     if (b.dataset.fane === fane) b.setAttribute('aria-current', 'page');
     else b.removeAttribute('aria-current');
   }
-  indhold.replaceChildren(...[VISNINGER[fane]()].flat().filter(Boolean));
+  indhold.replaceChildren(...[VISNINGER[fane]()].flat(Infinity).filter(Boolean));
 }
 
 for (const b of document.querySelectorAll('.faner button')) {
