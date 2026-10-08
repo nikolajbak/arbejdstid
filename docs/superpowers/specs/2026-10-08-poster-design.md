@@ -14,7 +14,6 @@ arbejdet. Appen viser, hvad hver kunde skylder.
 - Brændstof tastes som beløb i kr, ikke km.
 - Saldo pr. kunde over al tid: arbejde + udgifter + brændstof − kontantudlæg − betalinger.
   Arbejdet regnes med kvartersafrundingen (`amountOf`).
-- Beløb tastes ekskl. moms, som timeprisen.
 - Indtastning fra Tid-skærmen.
 
 ## Data
@@ -42,7 +41,6 @@ Visningsnavne: Udgift, Brændstof, Kontantudlæg, Betaling.
   - kunderække, der bruger kundevælgeren uden opgavesektionen
   - Dato (i dag), Beløb i kr, Note
   - Gem / Slet
-  - hjælpetekst: "Beløb ekskl. moms."
 - Dagens poster står i "I dag"-listen og tæller ikke med i dagens timer.
 
 ## Historik

@@ -93,7 +93,6 @@ export function aabnPost(post, forvalg = {}) {
         h('div', { class: 'raekke tidsfelter' }, h('span', { class: 'hoved' }, 'Dato'), dato),
       ),
       felt('Beløb i kr', beloeb),
-      h('p', { class: 'hjaelp' }, 'Beløb ekskl. moms.'),
       felt('Note', note),
       fejl,
       !ny && h('button', { class: 'knap fare', type: 'button', onclick: slet }, 'Slet posten'),

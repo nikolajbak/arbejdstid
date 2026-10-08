@@ -20,7 +20,7 @@ personer, hver med egne data på egen telefon.
 ## Datamodel
 
 ```
-Kunde      { id, navn, timepris (kr ekskl. moms, tal), arkiveret (bool) }
+Kunde      { id, navn, timepris (kr, tal), arkiveret (bool) }
 Opgavetype { id, navn, arkiveret (bool) }
 Registrering {
   id, kundeId, opgavetypeId,

@@ -141,7 +141,7 @@ Bruges til "Tilføj tid" og til at rette.
 - **Overbliksskort:** samlet tid og beløb, en vandret bjælke med hver kundes
   andel af tiden i kundens farve, en række pr. kunde (prik, navn, t:mm,
   beløb). Tryk på en kunde folder fordelingen pr. opgavetype ud (inkl. "Uden
-  opgave"). "Eksportér CSV" og "Beløb er ekskl. moms." i kortet.
+  opgave"). "Eksportér CSV" i kortet.
 - **Registreringer:** periodens registreringer grupperet pr. dag (som i dag),
   med dagens samlede tid; tryk åbner rettearket.
 - Tom periode: "Ingen tid registreret i perioden."

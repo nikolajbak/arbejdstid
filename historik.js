@@ -139,7 +139,6 @@ function overblik(entries, poster, g) {
         class: 'knap sekundaer',
         onclick: () => downloadFile(filnavn, toCSV(entries, t.state.kunder, t.state.opgavetyper, poster, t.team ? (p) => personNavn(t.team, p) : null), 'text/csv;charset=utf-8'),
       }, 'Eksportér CSV'),
-      h('p', { class: 'hjaelp' }, 'Beløb er ekskl. moms.'),
     ),
   );
 }

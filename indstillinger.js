@@ -49,7 +49,7 @@ export function redigerKunde(kunde) {
     h('form', { onsubmit: gem },
       arkTop(ny ? 'Ny kunde' : 'Kunde', h('button', { type: 'submit', class: 'tekstknap staerk' }, 'Gem')),
       felt('Navn', navn),
-      felt('Timepris i kr ekskl. moms', pris),
+      felt('Timepris i kr', pris),
       !ny && h('p', { class: 'hjaelp' }, 'En ny timepris gælder kun for tid, der registreres fremover.'),
       h('div', { class: 'felt' }, h('span', {}, 'Farve'), farver),
       fejl,

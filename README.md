@@ -15,8 +15,8 @@ få et overblik og en CSV-fil til fakturering.
   starte uret? **+ Tilføj** → Tid.
 - **Penge på en kunde:** **+ Tilføj** → Udgift, Brændstof, Kontantudlæg eller
   Betaling. Udgifter og brændstof lægges til det, kunden skylder; kontanter
-  og betalinger trækkes fra. Beløb er ekskl. moms. Kontanter til materialer
-  tastes som et kontantudlæg og en udgift, så de går i nul.
+  og betalinger trækkes fra. Kontanter til materialer tastes som et
+  kontantudlæg og en udgift, så de går i nul.
 - **Afrunding:** hver registrering tæller mindst 15 minutter og rundes op til
   nærmeste kvarter, både i tid og beløb. Start og slut gemmes præcist, så
   afrundingen gælder også gamle registreringer.
