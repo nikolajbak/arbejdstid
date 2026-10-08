@@ -14,6 +14,27 @@ export function amountOf(entry) {
   return (durationMs(entry) / TIME_MS) * entry.timepris;
 }
 
+// --- Poster: penge på en kunde ud over tiden ---------------------------------------
+
+export const POST_TYPER = { udgift: 'Udgift', braendstof: 'Brændstof', kontant: 'Kontantudlæg', betaling: 'Betaling' };
+
+// Udgifter lægges til det, kunden skylder; kontanter og betalinger trækkes fra.
+export function postBeloeb(p) {
+  return p.type === 'kontant' || p.type === 'betaling' ? -p.beloeb : p.beloeb;
+}
+
+// Hvad hver kunde skylder over al tid. Kunder i nul udelades.
+export function saldoer(registreringer, poster, kunder) {
+  const pr = new Map();
+  const laeg = (id, kr) => pr.set(id, (pr.get(id) ?? 0) + kr);
+  for (const r of registreringer) laeg(r.kundeId, amountOf(r));
+  for (const p of poster) laeg(p.kundeId, postBeloeb(p));
+  return [...pr]
+    .filter(([, saldo]) => Math.abs(saldo) >= 0.005)
+    .map(([kundeId, saldo]) => ({ kundeId, navn: kunder.find((k) => k.id === kundeId)?.navn ?? '(slettet)', saldo }))
+    .sort((a, b) => a.navn.localeCompare(b.navn, 'da'));
+}
+
 export function formatDuration(ms) {
   const minutter = Math.floor(Math.max(0, ms) / 60000);
   const t = Math.floor(minutter / 60);
@@ -168,8 +189,12 @@ export function skiftUr(tilstand, ny, nu, timepris, id) {
   return { ...tilstand, registreringer, ur: { kundeId: ny.kundeId, opgavetypeId: ny.opgavetypeId ?? '', start: nu, note: '' } };
 }
 
-export function summarize(entries, kunder, opgavetyper) {
+export function summarize(entries, kunder, opgavetyper, poster = []) {
   const pr = new Map();
+  const kundeI = (id) => {
+    if (!pr.has(id)) pr.set(id, { kundeId: id, navn: navnPaa(kunder, id), ms: 0, kr: 0, typer: new Map(), poster: new Map() });
+    return pr.get(id);
+  };
   let ms = 0;
   let kr = 0;
   for (const e of entries) {
@@ -177,8 +202,7 @@ export function summarize(entries, kunder, opgavetyper) {
     const a = amountOf(e);
     ms += d;
     kr += a;
-    if (!pr.has(e.kundeId)) pr.set(e.kundeId, { kundeId: e.kundeId, navn: navnPaa(kunder, e.kundeId), ms: 0, kr: 0, typer: new Map() });
-    const k = pr.get(e.kundeId);
+    const k = kundeI(e.kundeId);
     k.ms += d;
     k.kr += a;
     if (!k.typer.has(e.opgavetypeId)) k.typer.set(e.opgavetypeId, { opgavetypeId: e.opgavetypeId, navn: typeNavn(opgavetyper, e.opgavetypeId), ms: 0, kr: 0 });
@@ -186,8 +210,13 @@ export function summarize(entries, kunder, opgavetyper) {
     t.ms += d;
     t.kr += a;
   }
+  for (const p of poster) {
+    const k = kundeI(p.kundeId);
+    k.poster.set(p.type, (k.poster.get(p.type) ?? 0) + p.beloeb);
+  }
+  const postLinjer = (m) => Object.keys(POST_TYPER).filter((x) => m.has(x)).map((x) => ({ type: x, navn: POST_TYPER[x], kr: m.get(x) }));
   return {
-    kunder: [...pr.values()].map((k) => ({ ...k, typer: [...k.typer.values()].sort(typeOrden) })).sort(efterNavn),
+    kunder: [...pr.values()].map((k) => ({ ...k, typer: [...k.typer.values()].sort(typeOrden), poster: postLinjer(k.poster) })).sort(efterNavn),
     ms,
     kr,
   };
@@ -203,12 +232,24 @@ const csvFelt = (v) => {
   return /[;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 
-export function toCSV(entries, kunder, opgavetyper) {
+export function toCSV(entries, kunder, opgavetyper, poster = []) {
   const linjer = ['Dato;Start;Slut;Kunde;Opgavetype;Timer;Timepris;Beløb;Note'];
-  for (const e of [...entries].sort((a, b) => new Date(a.start) - new Date(b.start))) {
-    const s = new Date(e.start);
+  const dansk = (d) => `${p2(d.getDate())}-${p2(d.getMonth() + 1)}-${d.getFullYear()}`;
+  // Poster har kun en dato; de sorteres ved dagens start.
+  const alle = [
+    ...entries.map((e) => ({ e, t: new Date(e.start) })),
+    ...poster.map((p) => ({ p, t: new Date(`${p.dato}T00:00`) })),
+  ].sort((a, b) => a.t - b.t);
+  for (const { e, p, t } of alle) {
+    if (p) {
+      // Beløbet er et tal og må gerne starte med minus, så det går uden om csvFelt.
+      const felter = [dansk(t), '', '', navnPaa(kunder, p.kundeId), POST_TYPER[p.type], '', ''].map(csvFelt);
+      linjer.push([...felter, csvTal(postBeloeb(p)), csvFelt(p.note)].join(';'));
+      continue;
+    }
+    const s = t;
     linjer.push([
-      `${p2(s.getDate())}-${p2(s.getMonth() + 1)}-${s.getFullYear()}`,
+      dansk(s),
       klokken(s),
       klokken(new Date(e.slut)),
       navnPaa(kunder, e.kundeId),
@@ -232,6 +273,8 @@ const gyldigType = (t) => t && erTekst(t.id) && erTekst(t.navn);
 const gyldigReg = (r) => r && erTekst(r.id) && erTekst(r.kundeId) && erTekst(r.opgavetypeId)
   && erDato(r.start) && erDato(r.slut) && new Date(r.slut) > new Date(r.start)
   && erTal(r.timepris) && erValgfriTekst(r.note);
+const gyldigPost = (p) => p && erTekst(p.id) && erTekst(p.kundeId) && p.type in POST_TYPER
+  && erTekst(p.dato) && /^\d{4}-\d{2}-\d{2}$/.test(p.dato) && erTal(p.beloeb) && p.beloeb > 0 && erValgfriTekst(p.note);
 const gyldigtUr = (u) => u == null
   || (erTekst(u.kundeId) && erTekst(u.opgavetypeId) && erDato(u.start) && erValgfriTekst(u.note));
 
@@ -241,20 +284,23 @@ export function validateBackup(obj) {
   if (!['kunder', 'opgavetyper', 'registreringer'].every((k) => Array.isArray(obj[k]))) return fejl;
   if (!obj.kunder.every(gyldigKunde) || !obj.opgavetyper.every(gyldigType)
     || !obj.registreringer.every(gyldigReg) || !gyldigtUr(obj.ur)) return fejl;
+  // Ældre backups har ingen poster.
+  const poster = obj.poster ?? [];
+  if (!Array.isArray(poster) || !poster.every(gyldigPost)) return fejl;
   // En ukendt farve fjernes; databasen tager kun imod de otte nøgler.
   const kunder = obj.kunder.map(({ farve, ...k }) => (FARVER.includes(farve) ? { ...k, farve } : k));
   const skjult = obj.skjult && typeof obj.skjult === 'object' && !Array.isArray(obj.skjult)
     && Object.values(obj.skjult).every((v) => typeof v === 'string') ? obj.skjult : {};
-  return { ok: true, data: { ...obj, kunder, ur: obj.ur ?? null, skjult } };
+  return { ok: true, data: { ...obj, kunder, poster, ur: obj.ur ?? null, skjult } };
 }
 
 // --- Synkronisering med skyen ------------------------------------------------
 
-const SAMLINGER = ['kunder', 'opgavetyper', 'registreringer'];
+const SAMLINGER = ['kunder', 'opgavetyper', 'registreringer', 'poster'];
 
 // Udfylder felter, som ældre data kan mangle, så de består databasens regler.
 function rens(samling, { id, ...data }) {
-  if (samling === 'registreringer') return { ...data, note: data.note ?? '' };
+  if (samling === 'registreringer' || samling === 'poster') return { ...data, note: data.note ?? '' };
   return { ...data, arkiveret: !!data.arkiveret };
 }
 
@@ -271,9 +317,9 @@ function fast(v) {
 export function forskel(foer, efter) {
   const ops = [];
   for (const samling of SAMLINGER) {
-    const gamle = new Map(foer[samling].map((x) => [x.id, fast(rens(samling, x))]));
+    const gamle = new Map((foer[samling] ?? []).map((x) => [x.id, fast(rens(samling, x))]));
     const nye = new Set();
-    for (const x of efter[samling]) {
+    for (const x of efter[samling] ?? []) {
       nye.add(x.id);
       const data = rens(samling, x);
       if (gamle.get(x.id) !== fast(data)) ops.push({ type: 'set', samling, id: x.id, data });
@@ -310,6 +356,12 @@ export function flet(lokal, konto) {
     kunder,
     opgavetyper,
     registreringer: [...konto.registreringer, ...lokal.registreringer.filter((r) => !kendte.has(r.id)).map(omskriv)],
+    poster: [
+      ...(konto.poster ?? []),
+      ...(lokal.poster ?? [])
+        .filter((p) => !(konto.poster ?? []).some((x) => x.id === p.id))
+        .map((p) => ({ ...p, kundeId: kundeId.get(p.kundeId) ?? p.kundeId })),
+    ],
     ur: konto.ur ?? (lokal.ur ? omskriv(lokal.ur) : null),
     skjult: konto.skjult ?? {},
   };

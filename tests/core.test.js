@@ -446,3 +446,74 @@ test('flet beholder kontoens skjulte kombinationer', () => {
   const skjult = { x: '2026-10-05T08:00:00.000Z' };
   assert.deepEqual(flet(tom(), { ...tom(), skjult }).skjult, skjult);
 });
+
+// --- Poster ----------------------------------------------------------------------
+
+import { POST_TYPER, postBeloeb, saldoer } from '../core.js';
+
+const post = (type, beloeb, kundeId = 'k1', dato = '2026-10-08', note = '') => ({ id: `${type}${beloeb}`, kundeId, type, dato, beloeb, note });
+const time = (kundeId, timepris) => ({ id: 'r', kundeId, opgavetypeId: '', start: '2026-10-08T08:00:00', slut: '2026-10-08T09:00:00', timepris, note: '' });
+
+test('POST_TYPER har de fire visningsnavne', () => {
+  assert.deepEqual(POST_TYPER, { udgift: 'Udgift', braendstof: 'Brændstof', kontant: 'Kontantudlæg', betaling: 'Betaling' });
+});
+
+test('postBeloeb giver plus for udgift og brændstof, minus for kontant og betaling', () => {
+  assert.deepEqual(['udgift', 'braendstof', 'kontant', 'betaling'].map((x) => postBeloeb(post(x, 100))), [100, 100, -100, -100]);
+});
+
+test('saldoer lægger arbejde og udgifter sammen og trækker kontant og betaling fra', () => {
+  const kunder = [k('k1', 'Michael'), k('k2', 'Anna')];
+  const regs = [time('k1', 800)];
+  const poster = [post('udgift', 200), post('kontant', 100)];
+  assert.deepEqual(saldoer(regs, poster, kunder), [{ kundeId: 'k1', navn: 'Michael', saldo: 900 }]);
+  assert.deepEqual(saldoer(regs, [...poster, post('betaling', 900)], kunder), []);
+});
+
+test('saldoer viser til gode som negativ og ukendt kunde som (slettet)', () => {
+  assert.deepEqual(saldoer([], [post('kontant', 500, 'x')], []), [{ kundeId: 'x', navn: '(slettet)', saldo: -500 }]);
+});
+
+test('summarize tager kunder med, der kun har poster, og summerer poster pr. type', () => {
+  const s = summarize([time('k1', 800)], [k('k1', 'B'), k('k2', 'A')], [], [post('udgift', 50, 'k2'), post('udgift', 25, 'k2'), post('betaling', 900, 'k1')]);
+  assert.deepEqual(s.kunder.map((x) => [x.navn, x.kr, x.poster]), [
+    ['A', 0, [{ type: 'udgift', navn: 'Udgift', kr: 75 }]],
+    ['B', 800, [{ type: 'betaling', navn: 'Betaling', kr: 900 }]],
+  ]);
+  assert.equal(s.kr, 800);
+});
+
+test('toCSV skriver poster som linjer med fortegn sorteret efter dato', () => {
+  const linjer = toCSV([time('k1', 800)], [k('k1', 'A')], [], [post('betaling', 900, 'k1', '2026-10-09', 'MobilePay'), post('udgift', 120.5, 'k1', '2026-10-07')]).split('\r\n');
+  assert.equal(linjer[1], '07-10-2026;;;A;Udgift;;;120,50;');
+  assert.equal(linjer[3], '09-10-2026;;;A;Betaling;;;-900,00;MobilePay');
+});
+
+test('validateBackup giver tomme poster for gammel backup og afviser ugyldige poster', () => {
+  const base = { version: 1, kunder: [], opgavetyper: [], registreringer: [] };
+  assert.deepEqual(validateBackup(base).data.poster, []);
+  assert.equal(validateBackup({ ...base, poster: [post('udgift', 10)] }).ok, true);
+  for (const p of [post('udgift', 0), post('gave', 10), { ...post('udgift', 10), dato: '8/10' }]) {
+    assert.equal(validateBackup({ ...base, poster: [p] }).ok, false, JSON.stringify(p));
+  }
+});
+
+test('forskel skriver og sletter poster og udfylder note', () => {
+  const p = { ...post('udgift', 10), note: undefined };
+  assert.deepEqual(forskel(tom(), { ...tom(), poster: [p] }), [
+    { type: 'set', samling: 'poster', id: p.id, data: { kundeId: 'k1', type: 'udgift', dato: '2026-10-08', beloeb: 10, note: '' } },
+  ]);
+  assert.deepEqual(forskel({ ...tom(), poster: [p] }, { ...tom(), poster: [] }), [{ type: 'slet', samling: 'poster', id: p.id }]);
+});
+
+test('flet tager telefonens poster med og omskriver kundeId', () => {
+  const lokal = { ...tom(), kunder: [k('l1', 'acme')], poster: [post('udgift', 10, 'l1')] };
+  const konto = { ...tom(), kunder: [k('k1', 'ACME')], poster: [post('betaling', 5, 'k1')] };
+  const r = flet(lokal, konto);
+  assert.deepEqual(r.poster.map((p) => [p.type, p.kundeId]), [['betaling', 'k1'], ['udgift', 'k1']]);
+});
+
+test('flet giver ikke poster et opgavetypeId-felt', () => {
+  const r = flet({ ...tom(), poster: [post('udgift', 10, 'l1')] }, tom());
+  assert.equal('opgavetypeId' in r.poster[0], false);
+});

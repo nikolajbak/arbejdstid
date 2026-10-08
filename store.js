@@ -12,6 +12,7 @@ export function defaultData() {
     kunder: [],
     opgavetyper: [],
     registreringer: [],
+    poster: [],
     ur: null,
     skjult: {},
   };
