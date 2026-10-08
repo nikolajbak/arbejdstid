@@ -366,5 +366,18 @@ test('validateBackup accepterer farve og tom opgave, men ikke en farve der ikke 
   const b = { version: 1, kunder: [{ id: 'a', navn: 'A', timepris: 1, farve: 'ler' }, { id: 'b', navn: 'B', timepris: 1 }], opgavetyper: [],
     registreringer: [r('1', 'a', '', '2026-10-01T09:00:00.000Z')], ur: { kundeId: 'a', opgavetypeId: '', start: '2026-10-01T10:00:00.000Z' } };
   assert.equal(validateBackup(b).ok, true);
-  assert.equal(validateBackup({ ...b, kunder: [{ id: 'a', navn: 'A', timepris: 1, farve: 5 }] }).ok, false);
+});
+
+test('validateBackup fjerner en ukendt farve i stedet for at sende den til databasen', () => {
+  const b = { version: 1, kunder: [{ id: 'a', navn: 'A', timepris: 1, farve: 'lilla' }, { id: 'b', navn: 'B', timepris: 1, farve: null }], opgavetyper: [], registreringer: [] };
+  const r = validateBackup(b);
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.data.kunder.map((k) => 'farve' in k), [false, false]);
+});
+
+test('skiftUr gemmer ikke en registrering, der slutter før den starter (urforskel mellem enheder)', () => {
+  const tilstand = { kunder: [], opgavetyper: [], registreringer: [], ur: { kundeId: 'a', opgavetypeId: '', start: '2026-10-08T09:30:05.000Z', note: '' } };
+  const ny = skiftUr(tilstand, { kundeId: 'b', opgavetypeId: '' }, '2026-10-08T09:30:00.000Z', 800, 'r9');
+  assert.deepEqual(ny.registreringer, []);
+  assert.equal(ny.ur.kundeId, 'b');
 });

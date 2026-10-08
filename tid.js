@@ -25,8 +25,13 @@ function start({ kundeId, opgavetypeId, note = '' }) {
   commit();
 }
 
+// Et dobbelttryk må ikke ramme det felt, der efter første tryk ligger under fingeren.
+let sidsteSkift = 0;
+
 // Fortsæt: kører et ur, gemmes det, og det nye startes med det samme.
 function fortsaet(kombination) {
+  if (Date.now() - sidsteSkift < 1000) return;
+  sidsteSkift = Date.now();
   const gammelt = t.state.ur;
   if (!gammelt) return start(kombination);
   const id = newId();
@@ -39,12 +44,20 @@ function fortsaet(kombination) {
 // så et ark, der lukkes eller trykkes to gange, ikke gemmer to gange.
 function gemUr(ur, slut, opgavetypeId, note) {
   if (!t.state.ur || t.state.ur.start !== ur.start || t.state.ur.kundeId !== ur.kundeId) return;
+  // Med forskellige ure på to enheder kan sluttiden ligge før starten. Den slags
+  // afvises af databasen, så uret stoppes uden at gemme.
+  const s = slut > ur.start ? slut : nuIso();
+  if (s <= ur.start) {
+    t.state.ur = null;
+    commit();
+    return;
+  }
   const r = {
     id: newId(),
     kundeId: ur.kundeId,
     opgavetypeId,
     start: ur.start,
-    slut: slut > ur.start ? slut : nuIso(),
+    slut: s,
     timepris: timeprisPaa(ur.kundeId),
     note,
   };

@@ -125,7 +125,9 @@ export function senesteKombinationer(registreringer, kunder, opgavetyper, ur, an
 // Gemmer det kørende ur som registrering (slut = nu) og starter et nyt.
 export function skiftUr(tilstand, ny, nu, timepris, id) {
   const { ur } = tilstand;
-  const registreringer = ur
+  // Med forskellige ure på to enheder kan "nu" ligge før starten; den slags
+  // registrering afvises af databasen, så den gemmes ikke.
+  const registreringer = ur && new Date(nu) > new Date(ur.start)
     ? [...tilstand.registreringer, { id, kundeId: ur.kundeId, opgavetypeId: ur.opgavetypeId ?? '', start: ur.start, slut: nu, timepris, note: ur.note ?? '' }]
     : tilstand.registreringer;
   return { ...tilstand, registreringer, ur: { kundeId: ny.kundeId, opgavetypeId: ny.opgavetypeId ?? '', start: nu, note: '' } };
@@ -190,7 +192,7 @@ const erTal = (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0;
 const erDato = (v) => erTekst(v) && !Number.isNaN(new Date(v).getTime());
 const erValgfriTekst = (v) => v == null || erTekst(v);
 
-const gyldigKunde = (k) => k && erTekst(k.id) && erTekst(k.navn) && erTal(k.timepris) && erValgfriTekst(k.farve);
+const gyldigKunde = (k) => k && erTekst(k.id) && erTekst(k.navn) && erTal(k.timepris);
 const gyldigType = (t) => t && erTekst(t.id) && erTekst(t.navn);
 const gyldigReg = (r) => r && erTekst(r.id) && erTekst(r.kundeId) && erTekst(r.opgavetypeId)
   && erDato(r.start) && erDato(r.slut) && new Date(r.slut) > new Date(r.start)
@@ -204,7 +206,9 @@ export function validateBackup(obj) {
   if (!['kunder', 'opgavetyper', 'registreringer'].every((k) => Array.isArray(obj[k]))) return fejl;
   if (!obj.kunder.every(gyldigKunde) || !obj.opgavetyper.every(gyldigType)
     || !obj.registreringer.every(gyldigReg) || !gyldigtUr(obj.ur)) return fejl;
-  return { ok: true, data: { ...obj, ur: obj.ur ?? null } };
+  // En ukendt farve fjernes; databasen tager kun imod de otte nøgler.
+  const kunder = obj.kunder.map(({ farve, ...k }) => (FARVER.includes(farve) ? { ...k, farve } : k));
+  return { ok: true, data: { ...obj, kunder, ur: obj.ur ?? null } };
 }
 
 // --- Synkronisering med skyen ------------------------------------------------
