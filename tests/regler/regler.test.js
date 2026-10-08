@@ -142,3 +142,17 @@ test('profil med skjulte genveje som map accepteres, andre typer afvises', async
   await assertFails(updateDoc(doc(ven(), 'brugere/ven'), { skjult: 'k1' }));
   await assertFails(updateDoc(doc(ven(), 'brugere/ven'), { andet: 1 }));
 });
+
+test('poster valideres', async () => {
+  const p = { kundeId: 'k1', type: 'udgift', dato: '2026-10-08', beloeb: 120.5, note: '' };
+  await assertSucceeds(setDoc(doc(ven(), 'brugere/ven/poster/p1'), p));
+  await assertSucceeds(deleteDoc(doc(ven(), 'brugere/ven/poster/p1')));
+  for (const [navn, daarlig] of [
+    ['ukendt type', { ...p, type: 'gave' }],
+    ['beløb 0', { ...p, beloeb: 0 }],
+    ['dato', { ...p, dato: '8/10' }],
+    ['ekstra felt', { ...p, timepris: 1 }],
+    ['manglende note', { kundeId: 'k1', type: 'udgift', dato: '2026-10-08', beloeb: 1 }],
+  ]) await assertFails(setDoc(doc(ven(), 'brugere/ven/poster/p2'), daarlig), navn);
+  await assertFails(setDoc(doc(admin(), 'brugere/ven/poster/p3'), p));
+});

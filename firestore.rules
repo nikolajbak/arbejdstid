@@ -116,6 +116,20 @@ service cloud.firestore {
           && request.resource.data.timepris >= 0
           && (!('note' in request.resource.data) || request.resource.data.note is string);
       }
+
+      // Udgifter, brændstof, kontantudlæg og betalinger på en kunde.
+      match /poster/{id} {
+        allow read, delete: if eget();
+        allow create, update: if eget()
+          && felter(['kundeId', 'type', 'dato', 'beloeb', 'note'], ['kundeId', 'type', 'dato', 'beloeb', 'note'])
+          && request.resource.data.kundeId is string
+          && request.resource.data.type in ['udgift', 'braendstof', 'kontant', 'betaling']
+          && request.resource.data.dato is string
+          && request.resource.data.dato.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          && request.resource.data.beloeb is number
+          && request.resource.data.beloeb > 0
+          && request.resource.data.note is string;
+      }
     }
   }
 }

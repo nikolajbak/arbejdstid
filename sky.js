@@ -2,7 +2,7 @@ import { doc, collection, onSnapshot, writeBatch } from 'https://www.gstatic.com
 import { db } from './firebase.js';
 import { forskel } from './core.js';
 
-const SAMLINGER = ['kunder', 'opgavetyper', 'registreringer'];
+const SAMLINGER = ['kunder', 'opgavetyper', 'registreringer', 'poster'];
 const kopi = (x) => structuredClone(x);
 const efterNavn = (a, b) => a.navn.localeCompare(b.navn, 'da');
 
@@ -12,7 +12,7 @@ const efterNavn = (a, b) => a.navn.localeCompare(b.navn, 'da');
 export function startSky(uid, { data, status, fejl }) {
   const profil = doc(db, 'brugere', uid);
   // Seneste kendte udgave af hver del. undefined = ikke modtaget endnu.
-  const del = { ur: undefined, skjult: undefined, kunder: undefined, opgavetyper: undefined, registreringer: undefined };
+  const del = { ur: undefined, skjult: undefined, kunder: undefined, opgavetyper: undefined, registreringer: undefined, poster: undefined };
   const ventende = {};
   let sidst = null;
   let varVentende = false;
@@ -23,6 +23,7 @@ export function startSky(uid, { data, status, fejl }) {
       kunder: [...del.kunder].sort(efterNavn),
       opgavetyper: [...del.opgavetyper].sort(efterNavn),
       registreringer: del.registreringer,
+      poster: del.poster,
       ur: del.ur,
       skjult: del.skjult,
     };
