@@ -184,14 +184,38 @@ export function sidenTekst(iso, nu = new Date()) {
 }
 
 // Gemmer det kørende ur som registrering (slut = nu) og starter et nyt.
-export function skiftUr(tilstand, ny, nu, timepris, id) {
+// --- Teams -------------------------------------------------------------------------
+
+// Én registrering pr. person. Uden personer (Mig) én uden person-felt.
+export function forPersoner(base, personer, nyId) {
+  if (!personer?.length) return [{ id: nyId(), ...base }];
+  return personer.map((person) => ({ id: nyId(), ...base, person }));
+}
+
+// Registreringerne for et stoppet ur: én pr. deltager, ellers én for personen.
+// person er null i Mig.
+export function registreringerFraUr(ur, { slut, timepris, opgavetypeId, note, person = null, nyId }) {
+  const base = { kundeId: ur.kundeId, opgavetypeId: opgavetypeId ?? '', start: ur.start, slut, timepris, note: note ?? '' };
+  const personer = ur.deltagere?.length ? ur.deltagere : person ? [person] : [];
+  return forPersoner(base, personer, nyId);
+}
+
+export const medPerson = (entries, uid) => (uid ? entries.filter((e) => e.person === uid) : entries);
+
+export const personNavn = (team, uid) => team?.navne?.[uid] ?? '(tidligere medlem)';
+
+export function skiftUr(tilstand, ny, nu, timepris, id, { person = null, nyId } = {}) {
   const { ur } = tilstand;
   // Med forskellige ure på to enheder kan "nu" ligge før starten; den slags
   // registrering afvises af databasen, så den gemmes ikke.
+  let foerste = true;
+  const ider = () => (foerste ? ((foerste = false), id) : nyId());
   const registreringer = ur && new Date(nu) > new Date(ur.start)
-    ? [...tilstand.registreringer, { id, kundeId: ur.kundeId, opgavetypeId: ur.opgavetypeId ?? '', start: ur.start, slut: nu, timepris, note: ur.note ?? '' }]
+    ? [...tilstand.registreringer, ...registreringerFraUr(ur, { slut: nu, timepris, opgavetypeId: ur.opgavetypeId, note: ur.note, person, nyId: ider })]
     : tilstand.registreringer;
-  return { ...tilstand, registreringer, ur: { kundeId: ny.kundeId, opgavetypeId: ny.opgavetypeId ?? '', start: nu, note: '' } };
+  const nytUr = { kundeId: ny.kundeId, opgavetypeId: ny.opgavetypeId ?? '', start: nu, note: '' };
+  if (ur?.deltagere?.length) nytUr.deltagere = ur.deltagere;
+  return { ...tilstand, registreringer, ur: nytUr };
 }
 
 export function summarize(entries, kunder, opgavetyper, poster = []) {
@@ -237,8 +261,10 @@ const csvFelt = (v) => {
   return /[;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 
-export function toCSV(entries, kunder, opgavetyper, poster = []) {
-  const linjer = ['Dato;Start;Slut;Kunde;Opgavetype;Timer;Timepris;Beløb;Note'];
+// personNavn(uid) giver i et team en sidste kolonne, Person.
+export function toCSV(entries, kunder, opgavetyper, poster = [], personNavn = null) {
+  const linjer = [`Dato;Start;Slut;Kunde;Opgavetype;Timer;Timepris;Beløb;Note${personNavn ? ';Person' : ''}`];
+  const person = (x) => (personNavn ? `;${csvFelt(x.person ? personNavn(x.person) : '')}` : '');
   const dansk = (d) => `${p2(d.getDate())}-${p2(d.getMonth() + 1)}-${d.getFullYear()}`;
   // Poster har kun en dato; de sorteres ved dagens start.
   const alle = [
@@ -249,7 +275,7 @@ export function toCSV(entries, kunder, opgavetyper, poster = []) {
     if (p) {
       // Beløbet er et tal og må gerne starte med minus, så det går uden om csvFelt.
       const felter = [dansk(t), '', '', navnPaa(kunder, p.kundeId), POST_TYPER[p.type], '', ''].map(csvFelt);
-      linjer.push([...felter, csvTal(postBeloeb(p)), csvFelt(p.note)].join(';'));
+      linjer.push([...felter, csvTal(postBeloeb(p)), csvFelt(p.note)].join(';') + person(p));
       continue;
     }
     const s = t;
@@ -263,7 +289,7 @@ export function toCSV(entries, kunder, opgavetyper, poster = []) {
       csvTal(e.timepris),
       csvTal(amountOf(e)),
       e.note,
-    ].map(csvFelt).join(';'));
+    ].map(csvFelt).join(';') + person(e));
   }
   return '﻿' + linjer.join('\r\n');
 }
@@ -334,6 +360,18 @@ export function forskel(foer, efter) {
   if (fast(foer.ur) !== fast(efter.ur)) ops.push({ type: 'ur', ur: efter.ur ?? null });
   if (fast(foer.skjult ?? {}) !== fast(efter.skjult ?? {})) ops.push({ type: 'skjult', skjult: efter.skjult ?? {} });
   return ops;
+}
+
+// Flytter Mig's data ind i et team: samme fletning som flet, og registreringerne
+// får personen. Teamets ur og skjulte genveje bevares. Kan køres igen uden dubletter.
+export function flytTilTeam(mig, team, uid) {
+  const f = flet(mig, team);
+  const kendte = new Set(team.registreringer.map((r) => r.id));
+  const registreringer = f.registreringer.map((r) => (kendte.has(r.id) ? r : { ...r, person: uid }));
+  return {
+    tilstand: { ...team, ...f, registreringer, ur: team.ur ?? null, skjult: team.skjult ?? {} },
+    antal: registreringer.length - kendte.size,
+  };
 }
 
 // Fletter data fra telefonen ind i kontoen. Navne, der findes i forvejen, genbruges.

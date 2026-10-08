@@ -528,3 +528,86 @@ test('parseNumber forstår tusindtalspunktum, når der også er decimalkomma', a
   assert.equal(parseNumber('8.5'), 8.5);
   assert.equal(parseNumber('1,250.5'), null);
 });
+
+// --- Teams -----------------------------------------------------------------------
+
+import { registreringerFraUr, forPersoner, medPerson, personNavn, flytTilTeam } from '../core.js';
+
+const tael = () => { let n = 0; return () => `id${++n}`; };
+const urT = { kundeId: 'a', opgavetypeId: 't', start: '2026-10-08T08:00:00.000Z', note: 'n' };
+const urValg = (person, nyId = tael()) => ({ slut: '2026-10-08T09:00:00.000Z', timepris: 800, opgavetypeId: 't', note: 'n', person, nyId });
+
+test('registreringerFraUr laver én registrering pr. deltager med samme tider', () => {
+  const regs = registreringerFraUr({ ...urT, deltagere: ['u1', 'u2'] }, urValg('u1'));
+  assert.deepEqual(regs.map((r) => [r.id, r.person, r.start, r.slut, r.timepris]), [
+    ['id1', 'u1', urT.start, '2026-10-08T09:00:00.000Z', 800],
+    ['id2', 'u2', urT.start, '2026-10-08T09:00:00.000Z', 800],
+  ]);
+});
+
+test('registreringerFraUr uden deltagere giver én for personen, og intet person-felt i Mig', () => {
+  assert.deepEqual(registreringerFraUr(urT, urValg('u1')).map((r) => r.person), ['u1']);
+  const mig = registreringerFraUr({ ...urT, deltagere: [] }, urValg(null));
+  assert.equal(mig.length, 1);
+  assert.equal('person' in mig[0], false);
+});
+
+test('skiftUr i et team gemmer for alle deltagere, og det nye ur har samme deltagere', () => {
+  const tilstand = { registreringer: [], ur: { ...urT, deltagere: ['u1', 'u2'] } };
+  const ny = skiftUr(tilstand, { kundeId: 'b', opgavetypeId: '' }, '2026-10-08T09:00:00.000Z', 800, 'r9', { person: 'u1', nyId: tael() });
+  assert.deepEqual(ny.registreringer.map((r) => [r.id, r.person, r.kundeId]), [['r9', 'u1', 'a'], ['id1', 'u2', 'a']]);
+  assert.deepEqual(ny.ur.deltagere, ['u1', 'u2']);
+});
+
+test('skiftUr i Mig er uændret: intet person-felt og ingen deltagere', () => {
+  const ny = skiftUr({ registreringer: [], ur: urT }, { kundeId: 'b', opgavetypeId: '' }, '2026-10-08T09:00:00.000Z', 800, 'r9');
+  assert.equal('person' in ny.registreringer[0], false);
+  assert.equal('deltagere' in ny.ur, false);
+});
+
+test('forPersoner laver én registrering pr. person og ingen person uden personer', () => {
+  const base = { kundeId: 'a', opgavetypeId: '', start: 's', slut: 'u', timepris: 1, note: '' };
+  assert.deepEqual(forPersoner(base, ['u1', 'u2', 'u3'], tael()).map((r) => [r.id, r.person]), [['id1', 'u1'], ['id2', 'u2'], ['id3', 'u3']]);
+  const mig = forPersoner(base, [], tael());
+  assert.deepEqual(mig.map((r) => r.id), ['id1']);
+  assert.equal('person' in mig[0], false);
+});
+
+test('medPerson filtrerer på person, og null giver alle', () => {
+  const regs = [{ person: 'u1' }, { person: 'u2' }];
+  assert.deepEqual(medPerson(regs, 'u2'), [{ person: 'u2' }]);
+  assert.equal(medPerson(regs, null).length, 2);
+});
+
+test('personNavn giver gemt navn eller (tidligere medlem)', () => {
+  const team = { navne: { u1: 'Nikolaj' } };
+  assert.equal(personNavn(team, 'u1'), 'Nikolaj');
+  assert.equal(personNavn(team, 'u9'), '(tidligere medlem)');
+});
+
+test('toCSV med personNavn tilføjer Person-kolonnen sidst, også tom for poster', () => {
+  const reg = { ...time('k1', 800), person: 'u1' };
+  const linjer = toCSV([reg], [k('k1', 'A')], [], [post('udgift', 10, 'k1', '2026-10-09')], (uid) => (uid === 'u1' ? 'Nikolaj' : '')).split('\r\n');
+  assert.ok(linjer[0].endsWith('Dato;Start;Slut;Kunde;Opgavetype;Timer;Timepris;Beløb;Note;Person'));
+  assert.ok(linjer[1].endsWith(';Nikolaj'));
+  assert.ok(linjer[2].endsWith('10,00;;'));
+});
+
+test('flytTilTeam fletter efter navn, sætter person og giver ingen dubletter ved anden kørsel', () => {
+  const reg = (id, kundeId) => ({ id, kundeId, opgavetypeId: 'lt', start: 's', slut: 'u', timepris: 1, note: '' });
+  const mig = { ...tom(), kunder: [k('l1', 'acme'), k('l2', 'Ny')], opgavetyper: [{ id: 'lt', navn: 'Møde', arkiveret: false }],
+    registreringer: [reg('r1', 'l1'), reg('r2', 'l2')], poster: [post('udgift', 10, 'l1')], ur: urT, skjult: { x: 'y' } };
+  const team = { ...tom(), kunder: [k('k1', 'ACME')], opgavetyper: [], registreringer: [], poster: [], ur: null, skjult: {} };
+  const { tilstand, antal } = flytTilTeam(mig, team, 'u1');
+  assert.equal(antal, 2);
+  assert.deepEqual(tilstand.kunder.map((x) => x.id), ['k1', 'l2']);
+  assert.deepEqual(tilstand.registreringer.map((r) => [r.id, r.kundeId, r.person]), [['r1', 'k1', 'u1'], ['r2', 'l2', 'u1']]);
+  assert.equal(tilstand.poster[0].kundeId, 'k1');
+  assert.equal(tilstand.ur, null);
+  assert.deepEqual(tilstand.skjult, {});
+  const igen = flytTilTeam(mig, tilstand, 'u1');
+  assert.equal(igen.antal, 0);
+  assert.equal(igen.tilstand.registreringer.length, 2);
+  assert.equal(igen.tilstand.kunder.length, 2);
+  assert.equal(igen.tilstand.poster.length, 1);
+});
