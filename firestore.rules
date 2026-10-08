@@ -82,7 +82,9 @@ service cloud.firestore {
       match /kunder/{id} {
         allow read, delete: if eget();
         allow create, update: if eget()
-          && felter(['navn', 'timepris', 'arkiveret'], ['navn', 'timepris', 'arkiveret'])
+          && felter(['navn', 'timepris', 'arkiveret'], ['navn', 'timepris', 'arkiveret', 'farve'])
+          && (!('farve' in request.resource.data)
+            || request.resource.data.farve in ['skov', 'ler', 'indigo', 'blomme', 'rosa', 'okker', 'hav', 'skifer'])
           && request.resource.data.navn is string
           && request.resource.data.navn.size() > 0
           && request.resource.data.timepris is number

@@ -124,3 +124,14 @@ test('bruger kan sætte uid, selv hvis feltet mangler i et dokument oprettet i k
   });
   await assertSucceeds(updateDoc(doc(som('ny', 'ny@x.dk'), 'godkendte/ny@x.dk'), { uid: 'ny' }));
 });
+
+test('kunde med gyldig farve accepteres, ukendt farve afvises', async () => {
+  await assertSucceeds(setDoc(doc(ven(), 'brugere/ven/kunder/k2'), { ...kunde, farve: 'ler' }));
+  await assertFails(setDoc(doc(ven(), 'brugere/ven/kunder/k3'), { ...kunde, farve: 'lilla' }));
+  await assertFails(setDoc(doc(ven(), 'brugere/ven/kunder/k4'), { ...kunde, farve: 5 }));
+});
+
+test('registrering og ur uden opgave accepteres', async () => {
+  await assertSucceeds(setDoc(doc(ven(), 'brugere/ven/registreringer/r1'), { ...reg, opgavetypeId: '' }));
+  await assertSucceeds(setDoc(doc(ven(), 'brugere/ven'), { email: 'ven@x.dk', oprettet: serverTimestamp(), ur: { kundeId: 'k1', opgavetypeId: '', start: '2026-10-07T08:00:00.000Z', note: '' } }));
+});
