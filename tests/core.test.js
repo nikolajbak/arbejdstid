@@ -272,9 +272,12 @@ test('normaliserEmail retter til små bogstaver og afviser ugyldige', () => {
 });
 
 test('fejlTekst oversætter Firebase-fejl til dansk', () => {
-  for (const kode of ['auth/invalid-credential', 'auth/wrong-password', 'auth/user-not-found', 'auth/invalid-email']) {
+  for (const kode of ['auth/invalid-credential', 'auth/wrong-password', 'auth/user-not-found']) {
     assert.equal(fejlTekst(kode), 'Forkert e-mail eller adgangskode.');
   }
+  assert.equal(fejlTekst('auth/invalid-email'), 'Det ligner ikke en e-mailadresse. Tjek den.');
+  assert.equal(fejlTekst('auth/missing-email'), 'Skriv din e-mail.');
+  assert.equal(fejlTekst('auth/missing-password'), 'Skriv en adgangskode.');
   assert.equal(fejlTekst('auth/email-already-in-use'), 'Der findes allerede en konto med den e-mail. Log ind i stedet.');
   assert.equal(fejlTekst('auth/weak-password'), 'Adgangskoden skal være mindst 6 tegn.');
   assert.equal(fejlTekst('auth/network-request-failed'), 'Første login kræver internet.');

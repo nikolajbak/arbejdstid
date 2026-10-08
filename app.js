@@ -71,15 +71,21 @@ function visLogin() {
   const kode = h('input', { type: 'password', autocomplete: 'current-password', required: true });
   const fejl = h('p', { class: 'fejl' });
   const info = h('p', { class: 'hjaelp' });
+  // Opret konto er ikke en submit-knap, så browserens tjek af tomme felter
+  // springes over; uden dette svarer Firebase "ugyldig e-mail" på to tomme felter.
+  const udfyldt = () => {
+    if (!email.value.trim()) { email.focus(); throw { code: 'auth/missing-email' }; }
+    if (!kode.value) { kode.focus(); throw { code: 'auth/missing-password' }; }
+  };
   visUde('Arbejdstid',
-    h('p', { class: 'intro' }, 'Log ind for at registrere din tid.'),
-    h('form', { class: 'kort form-kort', onsubmit: proev(fejl, () => logInd(email.value, kode.value)) },
+    h('p', { class: 'intro' }, 'Log ind for at registrere din tid. Ny her? Skriv din e-mail, vælg en adgangskode og tryk Opret konto.'),
+    h('form', { class: 'kort form-kort', onsubmit: proev(fejl, () => (udfyldt(), logInd(email.value, kode.value))) },
       felt('E-mail', email),
       felt('Adgangskode', kode),
       fejl,
       h('div', { class: 'knapper' },
         h('button', { class: 'knap', type: 'submit' }, 'Log ind'),
-        h('button', { class: 'knap sekundaer', type: 'button', onclick: proev(fejl, () => opretKonto(email.value, kode.value)) }, 'Opret konto'),
+        h('button', { class: 'knap sekundaer', type: 'button', onclick: proev(fejl, () => (udfyldt(), opretKonto(email.value, kode.value))) }, 'Opret konto'),
       ),
     ),
     h('button', {
