@@ -34,9 +34,18 @@ få et overblik og en CSV-fil til fakturering.
 - **Historik:** vælg måned med pilene eller tryk på titlen for uge, sidste
   måned eller egen periode. Tryk på en kunde for fordelingen pr. opgave, og på
   en registrering for at rette den. **Saldo** viser, hvad hver kunde skylder
-  over al tid; tryk for at registrere en betaling. **Eksportér CSV** til
+  over al tid; tryk på en kunde for at åbne den under Kunder.
+  Betalinger og kontantudlæg dækker kundens ældste tid og udgifter først, så
+  registreringer og udgifter er mærket **Afregnet** eller **Delvist
+  afregnet**, og Saldo viser, hvilken dag kunden er afregnet til og med. **Eksportér CSV** til
   fakturering; poster står i CSV'en med typen som opgavetype og fortegn på
   beløbet.
+- **Kunder:** hvad hver kunde skylder i alt, de skyldige øverst. Tryk på en
+  kunde for saldo, hvilken dag kunden er afregnet til og med, tid og
+  udestående pr. opgave, det udestående dag for dag (ældste først, som
+  betalinger dækker), alle betalinger og kontantudlæg og, foldet sammen, det
+  afregnede. Herfra registreres en betaling, det udestående eksporteres som
+  CSV, og kunden kan redigeres.
 - **Indstillinger:** kunder (navn, timepris, farve), opgavetyper, og under Mere:
   Brugere (administratorer), Backup og Konto.
 

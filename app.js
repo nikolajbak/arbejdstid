@@ -8,16 +8,18 @@ import {
 } from './konto.js';
 import { startSky, migSted, teamSted } from './sky.js';
 import { lytMineTeams } from './team.js';
-import { t, commit, setRender, setSkift } from './tilstand.js';
+import { t, commit, setRender, setSkift, setGaaTil } from './tilstand.js';
 import { h, felt, besked } from './ui.js';
 import { aabnSteder } from './teamark.js';
 import { visTid } from './tid.js';
 import { visHistorik } from './historik.js';
+import { visKunder } from './kunder.js';
 import { visIndstillinger, opdaterBrugere } from './indstillinger.js';
 
 const FANER = {
   tid: { titel: 'Tid', vis: visTid },
   historik: { titel: 'Historik', vis: visHistorik },
+  kunder: { titel: 'Kunder', vis: visKunder },
   indstillinger: { titel: 'Indstillinger', vis: visIndstillinger },
 };
 
@@ -290,6 +292,7 @@ function render() {
 }
 
 setRender(render);
+setGaaTil(skiftFane);
 
 for (const b of document.querySelectorAll('.faner button')) {
   b.addEventListener('click', () => skiftFane(b.dataset.fane));

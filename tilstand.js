@@ -38,6 +38,17 @@ export function skiftArbejdssted(id) {
   skift(id);
 }
 
+let gaa = () => {};
+
+export function setGaaTil(fn) {
+  gaa = fn;
+}
+
+// Skifter til en fane.
+export function gaaTil(fane) {
+  gaa(fane);
+}
+
 // Den indloggede brugers uid, når der arbejdes i et team, ellers null.
 export const migITeam = () => (t.arbejdssted ? t.bruger.uid : null);
 

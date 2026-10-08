@@ -35,6 +35,92 @@ export function saldoer(registreringer, poster, kunder) {
     .sort((a, b) => a.navn.localeCompare(b.navn, 'da'));
 }
 
+// Hvad der er afregnet: hver kundes betalinger og kontantudlæg dækker det ældste
+// arbejde og de ældste udgifter først. Giver pr. registrering/post (kun dem, der
+// lægges til saldoen) 'afregnet' eller 'delvis'; åbne er udeladt. rest er, hvad der
+// mangler på de delvise. afregnetTil er pr. kunde den sidste dag, hvor alt til og med
+// er afregnet.
+export function afregning(registreringer, poster) {
+  const pr = new Map();
+  const kunde = (id) => {
+    if (!pr.has(id)) pr.set(id, { kredit: 0, linjer: [] });
+    return pr.get(id);
+  };
+  for (const r of registreringer) kunde(r.kundeId).linjer.push({ id: r.id, tid: new Date(r.start).getTime(), dag: dayKey(new Date(r.start)), kr: amountOf(r) });
+  for (const p of poster) {
+    const kr = postBeloeb(p);
+    if (kr < 0) kunde(p.kundeId).kredit -= kr;
+    else kunde(p.kundeId).linjer.push({ id: p.id, tid: new Date(`${p.dato}T00:00`).getTime(), dag: p.dato, kr });
+  }
+  const status = new Map();
+  const rest = new Map();
+  const afregnetTil = new Map();
+  for (const [kundeId, { kredit, linjer }] of pr) {
+    linjer.sort((a, b) => a.tid - b.tid);
+    let sum = 0;
+    let i = 0;
+    for (; i < linjer.length; i++) {
+      const l = linjer[i];
+      if (sum + l.kr > kredit + 0.005) {
+        if (sum < kredit - 0.005) {
+          status.set(l.id, 'delvis');
+          rest.set(l.id, sum + l.kr - kredit);
+        }
+        break;
+      }
+      sum += l.kr;
+      status.set(l.id, 'afregnet');
+    }
+    // Sidste afregnede dag, der ikke også har noget åbent.
+    const aaben = linjer[i]?.dag;
+    const sidste = linjer.slice(0, i).reverse().find((l) => l.dag !== aaben);
+    if (sidste) afregnetTil.set(kundeId, sidste.dag);
+  }
+  return { status, rest, afregnetTil };
+}
+
+// Alt om én kunde over al tid: saldo, tid og udestående pr. opgave, det udestående
+// (ældste først), det afregnede (nyeste først) og betalingerne (nyeste først).
+// Linjer er { slags: 'registrering' | 'post', x, dag, kr, aabent }.
+export function kundeOversigt(kundeId, registreringer, poster, opgavetyper) {
+  const regs = registreringer.filter((r) => r.kundeId === kundeId);
+  const psts = poster.filter((p) => p.kundeId === kundeId);
+  const { status, rest, afregnetTil } = afregning(regs, psts);
+  const aabent = (id, kr) => (status.get(id) === 'afregnet' ? 0 : status.get(id) === 'delvis' ? rest.get(id) : kr);
+  const typer = new Map();
+  const linjer = [];
+  for (const r of regs) {
+    const kr = amountOf(r);
+    const l = { slags: 'registrering', x: r, tid: new Date(r.start).getTime(), dag: dayKey(new Date(r.start)), kr, aabent: aabent(r.id, kr) };
+    linjer.push(l);
+    if (!typer.has(r.opgavetypeId)) typer.set(r.opgavetypeId, { opgavetypeId: r.opgavetypeId, navn: typeNavn(opgavetyper, r.opgavetypeId), ms: 0, kr: 0, aabent: 0 });
+    const ty = typer.get(r.opgavetypeId);
+    ty.ms += durationMs(r);
+    ty.kr += kr;
+    ty.aabent += l.aabent;
+  }
+  const afregninger = [];
+  for (const p of psts) {
+    const kr = postBeloeb(p);
+    if (kr < 0) afregninger.push(p);
+    else linjer.push({ slags: 'post', x: p, tid: new Date(`${p.dato}T00:00`).getTime(), dag: p.dato, kr, aabent: aabent(p.id, kr) });
+  }
+  linjer.sort((a, b) => a.tid - b.tid);
+  const sum = (liste, f) => liste.reduce((n, x) => n + f(x), 0);
+  const udestaaende = linjer.filter((l) => l.aabent >= 0.005);
+  return {
+    saldo: sum(linjer, (l) => l.kr) - sum(afregninger, (p) => p.beloeb),
+    afregnetTil: afregnetTil.get(kundeId) ?? null,
+    status,
+    opgaver: [...typer.values()].sort(typeOrden),
+    udestaaende,
+    udestaaendeKr: sum(udestaaende, (l) => l.aabent),
+    afregnet: linjer.filter((l) => l.aabent < 0.005).reverse(),
+    afregninger: afregninger.sort((a, b) => (a.dato < b.dato ? 1 : -1)),
+    betalt: sum(afregninger, (p) => p.beloeb),
+  };
+}
+
 export function formatDuration(ms) {
   const minutter = Math.floor(Math.max(0, ms) / 60000);
   const t = Math.floor(minutter / 60);

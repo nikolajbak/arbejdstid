@@ -143,6 +143,7 @@ button.raekke:active, summary.raekke:active { background: var(--daempet); }
 .raekke .hoved { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .raekke .titel { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .raekke .under { color: var(--sek); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.raekke .under .afregnet { color: var(--tekst); font-weight: 600; }
 .raekke > .tal { text-align: right; display: flex; flex-direction: column; }
 .raekke > .ikon { color: var(--sek); width: 16px; height: 16px; }
 
@@ -446,7 +447,7 @@ dialog.ark::backdrop { background: rgb(0 0 0 / 0.35); animation: frem 200ms ease
   right: 0;
   bottom: 0;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   padding: 6px 8px calc(var(--bund) + 6px);
   background: color-mix(in srgb, var(--bg) 88%, transparent);
   backdrop-filter: blur(20px);
@@ -480,3 +481,22 @@ h2.sektion-top { display: flex; }
 .inviter { display: flex; align-items: flex-end; gap: 8px; margin-top: 12px; }
 .inviter .felt { flex: 1; margin: 0; }
 .chips.personer { margin: 4px 0 8px; }
+
+/* --- Kunder ------------------------------------------------------------------ */
+
+.kunde-total, .kunde-hoved { display: flex; flex-direction: column; gap: 2px; padding: 18px 16px; }
+.kunde-total .under, .kunde-hoved > .under { color: var(--sek); font-size: 14px; }
+.kunde-total .stor, .kunde-hoved .stor { font-size: 34px; font-weight: 300; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.kunde-hoved .kunde-navn { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.kunde-hoved .kunde-navn h2 { margin: 0; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kunde-hoved .kunde-navn .under { color: var(--sek); font-size: 15px; }
+.kunde-hoved .handlinger { display: grid; gap: 8px; margin-top: 16px; }
+.tekstknap.tilbage { margin: 0 0 4px -6px; color: var(--tekst); }
+.raekke .under .aaben { color: var(--tekst); font-weight: 600; }
+.afregnet-liste { margin-top: 24px; }
+.afregnet-liste > summary { list-style: none; cursor: pointer; color: var(--sek); padding: 0 4px; }
+.afregnet-liste > summary::-webkit-details-marker { display: none; }
+.afregnet-liste[open] > summary .ikon-ned { transform: rotate(180deg); }
+.kunde-hoved .handlinger .to { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; }
+.kunde-hoved .handlinger .to:empty { display: none; }
+.kunde-hoved .handlinger .to .knap { width: 100%; }

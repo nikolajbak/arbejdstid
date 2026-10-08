@@ -132,3 +132,9 @@ export async function downloadFile(navn, indhold, type) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   return true;
 }
+
+// "Afregnet" eller "Delvist afregnet" foran en rækkes undertekst; ellers intet.
+const AFREGNET = { afregnet: 'Afregnet', delvis: 'Delvist afregnet' };
+export function afregnetMaerke(status) {
+  return AFREGNET[status] ? h('span', { class: 'afregnet' }, AFREGNET[status]) : null;
+}

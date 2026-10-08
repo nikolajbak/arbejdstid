@@ -22,6 +22,7 @@ const FILER = [
   'teamark.js',
   'tid.js',
   'historik.js',
+  'kunder.js',
   'indstillinger.js',
   'manifest.webmanifest',
   'icons/icon-192.png',

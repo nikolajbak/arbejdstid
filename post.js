@@ -3,18 +3,19 @@
 import { POST_TYPER, dayKey, farveFor, formatKr, parseNumber, postBeloeb } from './core.js';
 import { newId } from './store.js';
 import { t, commit, aendr, kundePaa } from './tilstand.js';
-import { h, aabnArk, lukArk, arkTop, chip, felt, ikon, prik, navnPaa } from './ui.js';
+import { h, aabnArk, lukArk, arkTop, chip, felt, ikon, prik, navnPaa, afregnetMaerke } from './ui.js';
 import { aabnVaelger } from './vaelger.js';
 
 const kr = (n) => String(n).replace('.', ',');
 
-export function postRaekke(p) {
+export function postRaekke(p, status) {
   const beloeb = postBeloeb(p);
+  const maerke = afregnetMaerke(status);
   return h('button', { class: 'raekke', 'data-farve': farveFor(kundePaa(p.kundeId) ?? { id: p.kundeId }), onclick: () => aabnPost(p) },
     h('span', { class: 'streg' }),
     h('span', { class: 'hoved' },
       h('span', { class: 'titel' }, `${POST_TYPER[p.type]} · ${navnPaa(t.state.kunder, p.kundeId)}`),
-      p.note && h('span', { class: 'under' }, p.note),
+      (maerke || p.note) && h('span', { class: 'under' }, maerke, maerke && p.note && ' · ', p.note),
     ),
     h('span', { class: 'tal' }, h('span', { class: 'titel' }, `${beloeb < 0 ? '−' : '+'}${formatKr(Math.abs(beloeb))}`)),
   );

@@ -676,3 +676,66 @@ test('invitationsMail nævner teamet, når der er et', () => {
   assert.match(url.searchParams.get('subject'), /Kontoret & Co/);
   assert.match(url.searchParams.get('body'), /Kontoret & Co/);
 });
+
+import { afregning } from '../core.js';
+
+const reg = (id, dag, kundeId = 'k1') => ({ id, kundeId, opgavetypeId: '', start: `${dag}T08:00:00`, slut: `${dag}T09:00:00`, timepris: 800, note: '' });
+const pst = (id, type, beloeb, dato, kundeId = 'k1') => ({ id, kundeId, type, dato, beloeb, note: '' });
+
+test('afregning dækker det ældste først og markerer det næste delvist', () => {
+  const { status, afregnetTil } = afregning(
+    [reg('r2', '2026-10-02'), reg('r1', '2026-10-01'), reg('r3', '2026-10-03')],
+    [pst('b', 'betaling', 1000, '2026-10-05'), pst('u', 'udgift', 100, '2026-10-01')],
+  );
+  assert.equal(status.get('u'), 'afregnet');
+  assert.equal(status.get('r1'), 'afregnet');
+  assert.equal(status.get('r2'), 'delvis');
+  assert.equal(status.has('r3'), false);
+  assert.equal(status.has('b'), false);
+  assert.equal(afregnetTil.get('k1'), '2026-10-01');
+});
+
+test('afregning holder kunder adskilt og tæller kontantudlæg som betaling', () => {
+  const { status, afregnetTil } = afregning([reg('a', '2026-10-01'), reg('b', '2026-10-01', 'k2')], [pst('k', 'kontant', 800, '2026-10-01')]);
+  assert.equal(status.get('a'), 'afregnet');
+  assert.equal(status.has('b'), false);
+  assert.equal(afregnetTil.has('k2'), false);
+});
+
+test('afregnetTil springer en dag over, der også har noget åbent', () => {
+  const r = [reg('a', '2026-10-01'), reg('b', '2026-10-02'), { ...reg('c', '2026-10-02'), start: '2026-10-02T10:00:00', slut: '2026-10-02T11:00:00' }];
+  const { afregnetTil } = afregning(r, [pst('p', 'betaling', 1600, '2026-10-03')]);
+  assert.equal(afregnetTil.get('k1'), '2026-10-01');
+});
+
+import { kundeOversigt } from '../core.js';
+
+test('afregning giver resten på den delvist afregnede', () => {
+  const { rest } = afregning([reg('a', '2026-10-01'), reg('b', '2026-10-02')], [pst('p', 'betaling', 1000, '2026-10-03')]);
+  assert.equal(rest.get('b'), 600);
+});
+
+test('kundeOversigt samler saldo, opgaver, udestående og betalinger for én kunde', () => {
+  const typer = [{ id: 't1', navn: 'Have' }];
+  const o = kundeOversigt(
+    'k1',
+    [{ ...reg('a', '2026-10-01'), opgavetypeId: 't1' }, reg('b', '2026-10-02'), reg('c', '2026-10-03'), reg('x', '2026-10-03', 'k2')],
+    [pst('u', 'udgift', 200, '2026-10-04'), pst('p', 'betaling', 1000, '2026-10-05'), pst('k', 'kontant', 100, '2026-10-06'), pst('y', 'betaling', 50, '2026-10-06', 'k2')],
+    typer,
+  );
+  assert.equal(o.saldo, 3 * 800 + 200 - 1100);
+  assert.equal(o.betalt, 1100);
+  assert.deepEqual(o.afregninger.map((p) => p.id), ['k', 'p']);
+  assert.deepEqual(o.afregnet.map((l) => l.x.id), ['a']);
+  assert.deepEqual(o.udestaaende.map((l) => [l.x.id, l.aabent]), [['b', 500], ['c', 800], ['u', 200]]);
+  assert.equal(o.udestaaendeKr, o.saldo);
+  assert.equal(o.afregnetTil, '2026-10-01');
+  assert.deepEqual(o.opgaver.map((x) => [x.navn, x.kr, x.aabent]), [['Have', 800, 0], ['Uden opgave', 1600, 1300]]);
+});
+
+test('kundeOversigt uden noget giver nul og tomme lister', () => {
+  const o = kundeOversigt('k9', [reg('a', '2026-10-01')], [], []);
+  assert.equal(o.saldo, 0);
+  assert.equal(o.afregnetTil, null);
+  assert.equal(o.udestaaende.length + o.afregnet.length + o.afregninger.length + o.opgaver.length, 0);
+});

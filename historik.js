@@ -1,10 +1,11 @@
 // Fanen Historik: periode, overblik pr. kunde og registreringer dag for dag.
 
-import { dayKey, farveFor, formatDuration, formatKr, groupByDay, inPeriod, medPerson, monthRange, personNavn, postBeloeb, saldoer, summarize, toCSV } from './core.js';
+import { afregning, dayKey, farveFor, formatDuration, formatKr, groupByDay, inPeriod, medPerson, monthRange, personNavn, postBeloeb, saldoer, summarize, toCSV } from './core.js';
 import { t, render, kundePaa } from './tilstand.js';
 import { h, aabnArk, lukArk, arkTop, chip, downloadFile, felt, ikon, prik } from './ui.js';
 import { registreringsRaekke } from './registrering.js';
-import { aabnPost, postRaekke } from './post.js';
+import { postRaekke } from './post.js';
+import { aabnKunde } from './kunder.js';
 
 const DAG_MS = 86400000;
 
@@ -44,6 +45,7 @@ function graenser() {
   return monthRange(new Date(), periode.offset);
 }
 
+const langDato = (dag) => new Date(`${dag}T12:00`).toLocaleDateString('da-DK', { day: 'numeric', month: 'short', year: 'numeric' });
 const kortDato = (d) => d.toLocaleDateString('da-DK', { day: 'numeric', month: 'short' });
 
 function titel({ from, to }) {
@@ -148,23 +150,25 @@ function dagOverskrift(dag) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-// Hvad hver kunde skylder, uanset perioden. Et tryk registrerer en betaling.
-function saldoKort() {
+// Hvad hver kunde skylder, uanset perioden. Et tryk åbner kunden.
+function saldoKort(afregnetTil) {
   const liste = saldoer(t.state.registreringer, t.state.poster, t.state.kunder);
   if (!liste.length) return null;
   return [
     h('h3', { class: 'dag' }, h('span', {}, 'Saldo')),
     h('div', { class: 'kort' }, liste.map((x) => h('button', {
       class: 'raekke',
-      onclick: () => aabnPost(null, { type: 'betaling', kundeId: x.kundeId, beloeb: x.saldo > 0 ? Math.round(x.saldo * 100) / 100 : undefined }),
+      onclick: () => aabnKunde(x.kundeId),
     },
     prik(kundePaa(x.kundeId) ?? { id: x.kundeId }),
-    h('span', { class: 'hoved' }, h('span', { class: 'titel' }, x.navn)),
+    h('span', { class: 'hoved' },
+      h('span', { class: 'titel' }, x.navn),
+      afregnetTil.has(x.kundeId) && h('span', { class: 'under' }, `Afregnet t.o.m. ${langDato(afregnetTil.get(x.kundeId))}`)),
     h('span', { class: 'tal' },
       h('span', { class: 'titel' }, formatKr(Math.abs(x.saldo))),
       h('span', { class: 'under' }, x.saldo > 0 ? 'Skylder' : 'Til gode')),
     ))),
-    h('p', { class: 'hjaelp genvej-hjaelp' }, 'Over al tid. Tryk på en kunde for at registrere en betaling.'),
+    h('p', { class: 'hjaelp genvej-hjaelp' }, 'Over al tid. Betalinger dækker det ældste først. Tryk på en kunde for at se udestående og registrere en betaling.'),
   ];
 }
 
@@ -184,20 +188,22 @@ export function visHistorik() {
     person = null;
   }
   const g = graenser();
+  // Over al tid og alle personer, ligesom saldoen.
+  const { status, afregnetTil } = afregning(t.state.registreringer, t.state.poster);
   const entries = medPerson(t.state.registreringer, t.team ? person : null).filter((e) => inPeriod(e, g.from, g.to));
   const poster = t.state.poster.filter((p) => {
     const d = new Date(`${p.dato}T00:00`);
     return d >= g.from && d < g.to;
   });
-  if (!entries.length && !poster.length) return [personVaelger(), periodeVaelger(g), h('p', { class: 'tom' }, 'Intet registreret i perioden.'), saldoKort()];
+  if (!entries.length && !poster.length) return [personVaelger(), periodeVaelger(g), h('p', { class: 'tom' }, 'Intet registreret i perioden.'), saldoKort(afregnetTil)];
   return [
     personVaelger(),
     periodeVaelger(g),
     overblik(entries, poster, g),
-    saldoKort(),
+    saldoKort(afregnetTil),
     dagListe(entries, poster).map((d) => [
       h('h3', { class: 'dag' }, h('span', {}, dagOverskrift(d.dag)), d.ms > 0 && h('span', { class: 'tal' }, formatDuration(d.ms))),
-      h('div', { class: 'kort' }, d.entries.map(registreringsRaekke), d.poster.map(postRaekke)),
+      h('div', { class: 'kort' }, d.entries.map((e) => registreringsRaekke(e, status.get(e.id))), d.poster.map((p) => postRaekke(p, status.get(p.id)))),
     ]),
   ];
 }

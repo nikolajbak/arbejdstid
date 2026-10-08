@@ -3,7 +3,7 @@
 import { amountOf, dayKey, durationMs, farveFor, forPersoner, formatDuration, formatKr, medPerson, parseNumber, personNavn, senesteKombinationer, validateEntry } from './core.js';
 import { newId } from './store.js';
 import { t, commit, aendr, kundePaa, migITeam } from './tilstand.js';
-import { h, aabnArk, lukArk, arkTop, felt, ikon, prik, klokken, lokalTid, navnPaa } from './ui.js';
+import { h, aabnArk, lukArk, arkTop, felt, ikon, prik, klokken, lokalTid, navnPaa, afregnetMaerke } from './ui.js';
 import { aabnVaelger } from './vaelger.js';
 
 const FEM_MIN = 5 * 60000;
@@ -15,12 +15,14 @@ export function hvadTekst({ kundeId, opgavetypeId }) {
   return opgavetypeId ? `${kunde} · ${navnPaa(t.state.opgavetyper, opgavetypeId)}` : kunde;
 }
 
-export function registreringsRaekke(e) {
+// status er 'afregnet' eller 'delvis' fra afregning(); udeladt viser intet mærke.
+export function registreringsRaekke(e, status) {
+  const maerke = afregnetMaerke(status);
   return h('button', { class: 'raekke', 'data-farve': farveFor(kundePaa(e.kundeId) ?? { id: e.kundeId }), onclick: () => aabnRegistrering(e) },
     h('span', { class: 'streg' }),
     h('span', { class: 'hoved' },
       h('span', { class: 'titel' }, hvadTekst(e)),
-      h('span', { class: 'under' }, `${t.team && e.person ? `${personNavn(t.team, e.person)} · ` : ''}${klokken(e.start)}–${klokken(e.slut)}${e.note ? ` · ${e.note}` : ''}`),
+      h('span', { class: 'under' }, maerke, maerke && ' · ', `${t.team && e.person ? `${personNavn(t.team, e.person)} · ` : ''}${klokken(e.start)}–${klokken(e.slut)}${e.note ? ` · ${e.note}` : ''}`),
     ),
     h('span', { class: 'tal' },
       h('span', { class: 'titel' }, formatDuration(durationMs(e))),

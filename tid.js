@@ -275,7 +275,7 @@ function iDag() {
   const poster = t.state.poster.filter((p) => p.dato === i);
   return [
     h('h2', { class: 'sektion-top' }, h('span', {}, 'I dag'), h('span', { class: 'tal total-i-dag', id: 'dag-total' }, dagensTotal())),
-    (dagens.length || poster.length) && h('div', { class: 'kort' }, dagens.map(registreringsRaekke), poster.map(postRaekke)),
+    (dagens.length || poster.length) && h('div', { class: 'kort' }, dagens.map((e) => registreringsRaekke(e)), poster.map((p) => postRaekke(p))),
     h('button', { class: 'tekstknap tilfoej', onclick: () => aabnTilfoej(() => aabnRegistrering()) }, ikon('plus'), 'Tilføj'),
   ];
 }
