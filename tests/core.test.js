@@ -522,6 +522,9 @@ test('parseNumber forstår tusindtalspunktum, når der også er decimalkomma', a
   const { parseNumber } = await import('../core.js');
   assert.equal(parseNumber('1.250,50'), 1250.5);
   assert.equal(parseNumber('12.500.000,00'), 12500000);
-  assert.equal(parseNumber('1.250'), 1.25);
+  // Kun tusindtalspunktum er tvetydigt (1,25 eller 1250) og afvises.
+  assert.equal(parseNumber('1.250'), null);
+  assert.equal(parseNumber('12.500.000'), null);
+  assert.equal(parseNumber('8.5'), 8.5);
   assert.equal(parseNumber('1,250.5'), null);
 });

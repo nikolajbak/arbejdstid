@@ -53,9 +53,11 @@ export function formatKr(n) {
 }
 
 // Tal skrevet med komma eller punktum. Returnerer null hvis ugyldigt.
-// "1.250,50" læses med punktum som tusindtalsskilletegn.
+// "1.250,50" læses med punktum som tusindtalsskilletegn. "1.250" alene er
+// tvetydigt og afvises, så et beløb ikke stille bliver 1000 gange for lille.
 export function parseNumber(str) {
   let s = String(str ?? '').trim();
+  if (/^\d{1,3}(\.\d{3})+$/.test(s)) return null;
   if (/^\d{1,3}(\.\d{3})+,\d+$/.test(s)) s = s.replace(/\./g, '');
   s = s.replace(',', '.');
   if (!/^\d+(\.\d+)?$/.test(s)) return null;

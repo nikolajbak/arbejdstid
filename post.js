@@ -64,7 +64,7 @@ export function aabnPost(post, forvalg = {}) {
     if (!valg.kundeId) return (fejl.textContent = 'Vælg en kunde');
     if (!dato.value) return (fejl.textContent = 'Vælg en dato');
     const b = parseNumber(beloeb.value);
-    if (b === null || b <= 0) return (fejl.textContent = 'Skriv et beløb over 0');
+    if (b === null || b <= 0) return (fejl.textContent = 'Skriv et beløb over 0, fx 1250 eller 1.250,00');
     const data = { kundeId: valg.kundeId, type: valg.type, dato: dato.value, beloeb: b, note: note.value.trim() };
     if (ny) t.state.poster.push({ id: newId(), ...data });
     else aendr('poster', post, data);
