@@ -100,4 +100,4 @@ tests/core.test.js  node --test
 ## Uden for scope
 
 Synkronisering mellem enheder, fælles data, login, fakturagenerering (PDF),
-afrunding, moms-beregning, flere valutaer.
+afrunding, flere valutaer.

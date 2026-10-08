@@ -14,7 +14,7 @@
 
 - Ingen npm-afhængigheder, intet byggetrin. `package.json` kun med `"type": "module"` og `"test": "node --test tests/"`.
 - Al brugertekst på dansk. Varighed som `t:mm` (fx `2:15`). Beløb som `1.234,50 kr`.
-- Timepris i kr ekskl. moms; kopieres ind i registreringen ved oprettelse.
+- Timepris i kr; kopieres ind i registreringen ved oprettelse.
 - Data i én localStorage-nøgle `arbejdstid.v1` med feltet `version: 1`.
 - Kunder/opgavetyper slettes ikke, de arkiveres (`arkiveret: true`).
 - Standard-opgavetyper: Møde, Udvikling, Rådgivning, Transport.
