@@ -10,7 +10,8 @@ const efterNavn = (a, b) => a.navn.localeCompare(b.navn, 'da');
 
 // paaValg({ kundeId, opgavetypeId, note }) kaldes, når brugeren bekræfter.
 // En ny kunde oprettes først ved bekræftelse; en ny opgave oprettes med det samme.
-export function aabnVaelger({ kundeId = '', opgavetypeId = '', knap, note = '', visNote = false, ekstra = null } = {}, paaValg) {
+// udenOpgave skjuler opgavedelen, fx for en post.
+export function aabnVaelger({ kundeId = '', opgavetypeId = '', knap, note = '', visNote = false, ekstra = null, udenOpgave = false } = {}, paaValg) {
   let valgtKunde = kundeId;
   let valgtType = opgavetypeId ?? '';
   // { navn, farve } når brugeren er ved at oprette en ny kunde.
@@ -126,11 +127,11 @@ export function aabnVaelger({ kundeId = '', opgavetypeId = '', knap, note = '', 
   tegnKunder();
   tegnTyper();
   aabnArk(
-    arkTop(knap === 'Start' ? 'Start ur' : 'Kunde og opgave'),
+    arkTop(knap === 'Start' ? 'Start ur' : udenOpgave ? 'Kunde' : 'Kunde og opgave'),
     h('div', { class: 'soeg' }, ikon('soeg'), soeg),
     kundeliste,
-    h('div', { class: 'ark-overskrift' }, h('h3', {}, 'Opgave'), h('span', { class: 'valgfri' }, 'valgfri')),
-    typer,
+    !udenOpgave && h('div', { class: 'ark-overskrift' }, h('h3', {}, 'Opgave'), h('span', { class: 'valgfri' }, 'valgfri')),
+    !udenOpgave && typer,
     noteFelt && felt('Note', noteFelt),
     fejl,
     bekraeft,

@@ -5,6 +5,7 @@ import { newId } from './store.js';
 import { t, commit, aktive, kundePaa } from './tilstand.js';
 import { h, aabnArk, lukArk, arkTop, besked, chip, felt, ikon, klokken, lokalTid, navnPaa, p2 } from './ui.js';
 import { aabnVaelger } from './vaelger.js';
+import { aabnTilfoej, postRaekke } from './post.js';
 import { aabnRegistrering, hvadTekst, registreringsRaekke } from './registrering.js';
 
 const nuIso = () => new Date().toISOString();
@@ -262,10 +263,11 @@ function iDag() {
   const dagens = t.state.registreringer
     .filter((r) => dayKey(r.start) === i)
     .sort((a, b) => new Date(b.start) - new Date(a.start));
+  const poster = t.state.poster.filter((p) => p.dato === i);
   return [
     h('h2', { class: 'sektion-top' }, h('span', {}, 'I dag'), h('span', { class: 'tal total-i-dag', id: 'dag-total' }, dagensTotal())),
-    dagens.length && h('div', { class: 'kort' }, dagens.map(registreringsRaekke)),
-    h('button', { class: 'tekstknap tilfoej', onclick: () => aabnRegistrering() }, ikon('plus'), 'Tilføj tid'),
+    (dagens.length || poster.length) && h('div', { class: 'kort' }, dagens.map(registreringsRaekke), poster.map(postRaekke)),
+    h('button', { class: 'tekstknap tilfoej', onclick: () => aabnTilfoej(() => aabnRegistrering()) }, ikon('plus'), 'Tilføj'),
   ];
 }
 

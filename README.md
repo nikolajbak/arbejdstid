@@ -12,13 +12,20 @@ få et overblik og en CSV-fil til fakturering.
   en genvej for at fjerne den; den kommer igen, næste gang du arbejder på det. **Stop** gemmer; uden opgave
   spørger appen, hvad du lavede. Tryk på kundenavnet på uret for at skifte
   kunde, opgave eller note, og på "Startet" for at rette starttiden. Glemt at
-  starte uret? **+ Tilføj tid**.
+  starte uret? **+ Tilføj** → Tid.
+- **Penge på en kunde:** **+ Tilføj** → Udgift, Brændstof, Kontantudlæg eller
+  Betaling. Udgifter og brændstof lægges til det, kunden skylder; kontanter
+  og betalinger trækkes fra. Beløb er ekskl. moms. Kontanter til materialer
+  tastes som et kontantudlæg og en udgift, så de går i nul.
 - **Afrunding:** hver registrering tæller mindst 15 minutter og rundes op til
   nærmeste kvarter, både i tid og beløb. Start og slut gemmes præcist, så
   afrundingen gælder også gamle registreringer.
 - **Historik:** vælg måned med pilene eller tryk på titlen for uge, sidste
   måned eller egen periode. Tryk på en kunde for fordelingen pr. opgave, og på
-  en registrering for at rette den. **Eksportér CSV** til fakturering.
+  en registrering for at rette den. **Saldo** viser, hvad hver kunde skylder
+  over al tid; tryk for at registrere en betaling. **Eksportér CSV** til
+  fakturering; poster står i CSV'en med typen som opgavetype og fortegn på
+  beløbet.
 - **Indstillinger:** kunder (navn, timepris, farve), opgavetyper, og under Mere:
   Brugere (administratorer), Backup og Konto.
 
@@ -103,7 +110,8 @@ bliver telefonerne ved med at vise den gamle version fra cachen.
 **Ændres `firestore.rules`, skal reglerne udgives igen** i Firebase-konsollen
 (Firestore → Regler → indsæt → Udgiv). Version 3 (det nye design) kræver det:
 kunder har nu en farve, og registreringer kan være uden opgave. Version 4
-kræver det også: fjernede genveje gemmes på profilen. Udgives reglerne ikke,
+kræver det også: fjernede genveje gemmes på profilen. Version 6 kræver det
+også: poster (udgifter, brændstof, kontantudlæg og betalinger). Udgives reglerne ikke,
 afvises de nye ændringer.
 
 ## Installér på iPhone

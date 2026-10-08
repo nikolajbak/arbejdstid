@@ -1,9 +1,10 @@
 // Fanen Historik: periode, overblik pr. kunde og registreringer dag for dag.
 
-import { dayKey, farveFor, formatDuration, formatKr, groupByDay, inPeriod, monthRange, summarize, toCSV } from './core.js';
+import { dayKey, farveFor, formatDuration, formatKr, groupByDay, inPeriod, monthRange, postBeloeb, saldoer, summarize, toCSV } from './core.js';
 import { t, render, kundePaa } from './tilstand.js';
 import { h, aabnArk, lukArk, arkTop, downloadFile, felt, ikon, prik } from './ui.js';
 import { registreringsRaekke } from './registrering.js';
+import { aabnPost, postRaekke } from './post.js';
 
 const DAG_MS = 86400000;
 
@@ -85,8 +86,10 @@ function periodeVaelger(g) {
   );
 }
 
-function overblik(entries, g) {
-  const s = summarize(entries, t.state.kunder, t.state.opgavetyper);
+const medFortegn = (n) => `${n < 0 ? '−' : '+'}${formatKr(Math.abs(n))}`;
+
+function overblik(entries, poster, g) {
+  const s = summarize(entries, t.state.kunder, t.state.opgavetyper, poster);
   const farve = (id) => farveFor(kundePaa(id) ?? { id });
   const sidsteDag = new Date(g.to.getTime() - DAG_MS);
   const filnavn = `arbejdstid-${dayKey(g.from)}_${dayKey(sidsteDag)}.csv`;
@@ -110,11 +113,15 @@ function overblik(entries, g) {
         h('span', { class: 'hoved' }, x.navn),
         h('span', { class: 'tal' }, `${formatDuration(x.ms)} · ${formatKr(x.kr)}`),
       )),
+      k.poster.map((x) => h('div', { class: 'raekke under-raekke' },
+        h('span', { class: 'hoved' }, x.navn),
+        h('span', { class: 'tal' }, medFortegn(postBeloeb({ type: x.type, beloeb: x.kr }))),
+      )),
     )),
     h('div', { class: 'fod' },
       h('button', {
         class: 'knap sekundaer',
-        onclick: () => downloadFile(filnavn, toCSV(entries, t.state.kunder, t.state.opgavetyper), 'text/csv;charset=utf-8'),
+        onclick: () => downloadFile(filnavn, toCSV(entries, t.state.kunder, t.state.opgavetyper, poster), 'text/csv;charset=utf-8'),
       }, 'Eksportér CSV'),
       h('p', { class: 'hjaelp' }, 'Beløb er ekskl. moms.'),
     ),
@@ -126,16 +133,51 @@ function dagOverskrift(dag) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+// Hvad hver kunde skylder, uanset perioden. Et tryk registrerer en betaling.
+function saldoKort() {
+  const liste = saldoer(t.state.registreringer, t.state.poster, t.state.kunder);
+  if (!liste.length) return null;
+  return [
+    h('h3', { class: 'dag' }, h('span', {}, 'Saldo')),
+    h('div', { class: 'kort' }, liste.map((x) => h('button', {
+      class: 'raekke',
+      onclick: () => aabnPost(null, { type: 'betaling', kundeId: x.kundeId, beloeb: x.saldo > 0 ? Math.round(x.saldo * 100) / 100 : undefined }),
+    },
+    prik(kundePaa(x.kundeId) ?? { id: x.kundeId }),
+    h('span', { class: 'hoved' }, h('span', { class: 'titel' }, x.navn)),
+    h('span', { class: 'tal' },
+      h('span', { class: 'titel' }, formatKr(Math.abs(x.saldo))),
+      h('span', { class: 'under' }, x.saldo > 0 ? 'Skylder' : 'Til gode')),
+    ))),
+    h('p', { class: 'hjaelp genvej-hjaelp' }, 'Over al tid. Tryk på en kunde for at registrere en betaling.'),
+  ];
+}
+
+// Registreringer og poster samlet pr. dag, nyeste dag først.
+function dagListe(entries, poster) {
+  const dage = new Map(groupByDay(entries).map((d) => [d.dag, { ...d, poster: [] }]));
+  for (const p of poster) {
+    if (!dage.has(p.dato)) dage.set(p.dato, { dag: p.dato, ms: 0, entries: [], poster: [] });
+    dage.get(p.dato).poster.push(p);
+  }
+  return [...dage.values()].sort((a, b) => (a.dag < b.dag ? 1 : -1));
+}
+
 export function visHistorik() {
   const g = graenser();
   const entries = t.state.registreringer.filter((e) => inPeriod(e, g.from, g.to));
-  if (!entries.length) return [periodeVaelger(g), h('p', { class: 'tom' }, 'Ingen tid registreret i perioden.')];
+  const poster = t.state.poster.filter((p) => {
+    const d = new Date(`${p.dato}T00:00`);
+    return d >= g.from && d < g.to;
+  });
+  if (!entries.length && !poster.length) return [periodeVaelger(g), h('p', { class: 'tom' }, 'Intet registreret i perioden.'), saldoKort()];
   return [
     periodeVaelger(g),
-    overblik(entries, g),
-    groupByDay(entries).map((d) => [
-      h('h3', { class: 'dag' }, h('span', {}, dagOverskrift(d.dag)), h('span', { class: 'tal' }, formatDuration(d.ms))),
-      h('div', { class: 'kort' }, d.entries.map(registreringsRaekke)),
+    overblik(entries, poster, g),
+    saldoKort(),
+    dagListe(entries, poster).map((d) => [
+      h('h3', { class: 'dag' }, h('span', {}, dagOverskrift(d.dag)), d.ms > 0 && h('span', { class: 'tal' }, formatDuration(d.ms))),
+      h('div', { class: 'kort' }, d.entries.map(registreringsRaekke), d.poster.map(postRaekke)),
     ]),
   ];
 }

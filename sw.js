@@ -1,5 +1,5 @@
 // Hæv versionen ved hver ny udgivelse, så telefonerne henter de nye filer.
-const CACHE = 'arbejdstid-v5';
+const CACHE = 'arbejdstid-v6';
 const FIREBASE = 'https://www.gstatic.com/firebasejs/13.0.0/';
 const FILER = [
   './',
@@ -16,6 +16,7 @@ const FILER = [
   'ui.js',
   'vaelger.js',
   'registrering.js',
+  'post.js',
   'tid.js',
   'historik.js',
   'indstillinger.js',

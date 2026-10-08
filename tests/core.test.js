@@ -517,3 +517,11 @@ test('flet giver ikke poster et opgavetypeId-felt', () => {
   const r = flet({ ...tom(), poster: [post('udgift', 10, 'l1')] }, tom());
   assert.equal('opgavetypeId' in r.poster[0], false);
 });
+
+test('parseNumber forstår tusindtalspunktum, når der også er decimalkomma', async () => {
+  const { parseNumber } = await import('../core.js');
+  assert.equal(parseNumber('1.250,50'), 1250.5);
+  assert.equal(parseNumber('12.500.000,00'), 12500000);
+  assert.equal(parseNumber('1.250'), 1.25);
+  assert.equal(parseNumber('1,250.5'), null);
+});
