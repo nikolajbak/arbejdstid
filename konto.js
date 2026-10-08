@@ -18,10 +18,16 @@ export const lytKonto = (cb) => onAuthStateChanged(auth, cb);
 
 export const logInd = (email, kode) => signInWithEmailAndPassword(auth, email.trim(), kode);
 
+// Kontoen findes, selv om mailen ikke kan sendes; fejlen returneres derfor i
+// stedet for at blive kastet, så den kan vises på skærmen Bekræft e-mail.
 export async function opretKonto(email, kode) {
   const { user } = await createUserWithEmailAndPassword(auth, email.trim(), kode);
-  await sendBekraeftelse();
-  return user;
+  try {
+    await sendBekraeftelse();
+    return { user, sendFejl: null };
+  } catch (err) {
+    return { user, sendFejl: err };
+  }
 }
 
 export const sendBekraeftelse = () => sendEmailVerification(auth.currentUser, { url: appAdresse() });

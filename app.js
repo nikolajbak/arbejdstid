@@ -85,7 +85,14 @@ function visLogin() {
       fejl,
       h('div', { class: 'knapper' },
         h('button', { class: 'knap', type: 'submit' }, 'Log ind'),
-        h('button', { class: 'knap sekundaer', type: 'button', onclick: proev(fejl, () => (udfyldt(), opretKonto(email.value, kode.value))) }, 'Opret konto'),
+        h('button', { class: 'knap sekundaer', type: 'button', onclick: proev(fejl, async () => {
+          udfyldt();
+          const { user, sendFejl } = await opretKonto(email.value, kode.value);
+          if (sendFejl) {
+            udeBesked = `Mailen kunne ikke sendes: ${fejlTekst(sendFejl.code)} Tryk Send igen om lidt.`;
+            visBekraeft(user);
+          }
+        }) }, 'Opret konto'),
       ),
     ),
     h('button', {
@@ -105,6 +112,7 @@ function visBekraeft(user) {
   const besked = h('p', { class: 'hjaelp' });
   visUde('Bekræft e-mail',
     h('p', {}, `Bekræft din e-mail via linket, vi sendte til ${user.email}`),
+    h('p', { class: 'hjaelp' }, 'Mailen kommer fra noreply@arbejdstid-dfdc6.firebaseapp.com. Kig også i uønsket post, hvis den ikke er i indbakken.'),
     besked,
     h('div', { class: 'knapper' },
       h('button', {
