@@ -1,6 +1,7 @@
 rules_version = '2';
 
-// Sikkerheden for Arbejdstid. Se docs/superpowers/specs/2026-10-07-login-og-sky-design.md.
+// Sikkerheden for Arbejdstid. Se docs/superpowers/specs/2026-10-07-login-og-sky-design.md
+// og docs/superpowers/specs/2026-10-08-teams-design.md.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -30,6 +31,64 @@ service cloud.firestore {
 
     function kunAendret(nogler) {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(nogler);
+    }
+
+    // --- Felterne i brugerens og teamets data ---------------------------------------
+
+    function gyldigtUr(u) {
+      return u == null || (u is map
+        && u.keys().hasAll(['kundeId', 'opgavetypeId', 'start'])
+        && u.keys().hasOnly(['kundeId', 'opgavetypeId', 'start', 'note', 'deltagere'])
+        && u.kundeId is string
+        && u.opgavetypeId is string
+        && u.start is string
+        && (!('note' in u) || u.note is string)
+        && (!('deltagere' in u) || u.deltagere is list));
+    }
+
+    function gyldigKunde() {
+      let d = request.resource.data;
+      return felter(['navn', 'timepris', 'arkiveret'], ['navn', 'timepris', 'arkiveret', 'farve'])
+        && (!('farve' in d) || d.farve in ['skov', 'ler', 'indigo', 'blomme', 'rosa', 'okker', 'hav', 'skifer'])
+        && d.navn is string
+        && d.navn.size() > 0
+        && d.timepris is number
+        && d.timepris >= 0
+        && d.arkiveret is bool;
+    }
+
+    function gyldigType() {
+      let d = request.resource.data;
+      return felter(['navn', 'arkiveret'], ['navn', 'arkiveret'])
+        && d.navn is string
+        && d.navn.size() > 0
+        && d.arkiveret is bool;
+    }
+
+    // Feltreglerne for en registrering; felterne selv tjekkes af kaldet.
+    function gyldigReg() {
+      let d = request.resource.data;
+      return d.kundeId is string
+        && d.opgavetypeId is string
+        && d.start is string
+        && d.slut is string
+        && d.slut > d.start
+        && d.timepris is number
+        && d.timepris >= 0
+        && (!('note' in d) || d.note is string);
+    }
+
+    // Udgifter, brændstof, kontantudlæg og betalinger på en kunde.
+    function gyldigPost() {
+      let d = request.resource.data;
+      return felter(['kundeId', 'type', 'dato', 'beloeb', 'note'], ['kundeId', 'type', 'dato', 'beloeb', 'note'])
+        && d.kundeId is string
+        && d.type in ['udgift', 'braendstof', 'kontant', 'betaling']
+        && d.dato is string
+        && d.dato.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && d.beloeb is number
+        && d.beloeb > 0
+        && d.note is string;
     }
 
     match /godkendte/{email} {
@@ -62,16 +121,6 @@ service cloud.firestore {
         return godkendt() && request.auth.uid == uid;
       }
 
-      function gyldigtUr(u) {
-        return u == null || (u is map
-          && u.keys().hasAll(['kundeId', 'opgavetypeId', 'start'])
-          && u.keys().hasOnly(['kundeId', 'opgavetypeId', 'start', 'note'])
-          && u.kundeId is string
-          && u.opgavetypeId is string
-          && u.start is string
-          && (!('note' in u) || u.note is string));
-      }
-
       allow read: if eget();
       allow create, update: if eget()
         && felter(['email', 'oprettet', 'ur'], ['email', 'oprettet', 'ur', 'skjult'])
@@ -82,24 +131,12 @@ service cloud.firestore {
 
       match /kunder/{id} {
         allow read, delete: if eget();
-        allow create, update: if eget()
-          && felter(['navn', 'timepris', 'arkiveret'], ['navn', 'timepris', 'arkiveret', 'farve'])
-          && (!('farve' in request.resource.data)
-            || request.resource.data.farve in ['skov', 'ler', 'indigo', 'blomme', 'rosa', 'okker', 'hav', 'skifer'])
-          && request.resource.data.navn is string
-          && request.resource.data.navn.size() > 0
-          && request.resource.data.timepris is number
-          && request.resource.data.timepris >= 0
-          && request.resource.data.arkiveret is bool;
+        allow create, update: if eget() && gyldigKunde();
       }
 
       match /opgavetyper/{id} {
         allow read, delete: if eget();
-        allow create, update: if eget()
-          && felter(['navn', 'arkiveret'], ['navn', 'arkiveret'])
-          && request.resource.data.navn is string
-          && request.resource.data.navn.size() > 0
-          && request.resource.data.arkiveret is bool;
+        allow create, update: if eget() && gyldigType();
       }
 
       match /registreringer/{id} {
@@ -107,28 +144,92 @@ service cloud.firestore {
         allow create, update: if eget()
           && felter(['kundeId', 'opgavetypeId', 'start', 'slut', 'timepris'],
                     ['kundeId', 'opgavetypeId', 'start', 'slut', 'timepris', 'note'])
-          && request.resource.data.kundeId is string
-          && request.resource.data.opgavetypeId is string
-          && request.resource.data.start is string
-          && request.resource.data.slut is string
-          && request.resource.data.slut > request.resource.data.start
-          && request.resource.data.timepris is number
-          && request.resource.data.timepris >= 0
-          && (!('note' in request.resource.data) || request.resource.data.note is string);
+          && gyldigReg();
       }
 
-      // Udgifter, brændstof, kontantudlæg og betalinger på en kunde.
       match /poster/{id} {
         allow read, delete: if eget();
-        allow create, update: if eget()
-          && felter(['kundeId', 'type', 'dato', 'beloeb', 'note'], ['kundeId', 'type', 'dato', 'beloeb', 'note'])
-          && request.resource.data.kundeId is string
-          && request.resource.data.type in ['udgift', 'braendstof', 'kontant', 'betaling']
-          && request.resource.data.dato is string
-          && request.resource.data.dato.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
-          && request.resource.data.beloeb is number
-          && request.resource.data.beloeb > 0
-          && request.resource.data.note is string;
+        allow create, update: if eget() && gyldigPost();
+      }
+    }
+
+    // --- Teams: alle medlemmer ser og skriver alt i teamet ------------------------------
+
+    match /teams/{teamId} {
+      function team() {
+        return get(/databases/$(database)/documents/teams/$(teamId)).data;
+      }
+
+      function medlem() {
+        return godkendt() && request.auth.uid in team().medlemmer;
+      }
+
+      function gyldigtTeam() {
+        let d = request.resource.data;
+        return felter(['navn', 'medlemmer', 'navne', 'inviterede', 'oprettet'], ['navn', 'medlemmer', 'navne', 'inviterede', 'oprettet'])
+          && d.navn is string
+          && d.navn.size() > 0
+          && d.medlemmer is list
+          && d.navne is map
+          && d.inviterede is list
+          && d.oprettet is timestamp;
+      }
+
+      // Læses af medlemmer og inviterede, også som forespørgsel.
+      allow get, list: if godkendt()
+        && (request.auth.uid in resource.data.medlemmer || egenEmail() in resource.data.inviterede);
+
+      allow create: if godkendt() && gyldigtTeam()
+        && request.resource.data.medlemmer == [request.auth.uid]
+        && request.resource.data.navne.keys().hasOnly([request.auth.uid])
+        && request.resource.data.navne[request.auth.uid] is string;
+
+      allow update: if godkendt() && gyldigtTeam() && (
+        // Et medlem må ændre navn, navne og invitationer og fjerne, men ikke tilføje, medlemmer.
+        (request.auth.uid in resource.data.medlemmer
+          && kunAendret(['navn', 'navne', 'inviterede', 'medlemmer'])
+          && request.resource.data.medlemmer.toSet().difference(resource.data.medlemmer.toSet()).size() == 0)
+        // En inviteret bliver medlem: tilføjer kun sig selv og fjerner kun sin egen invitation.
+        || (egenEmail() in resource.data.inviterede
+          && !(request.auth.uid in resource.data.medlemmer)
+          && kunAendret(['medlemmer', 'inviterede', 'navne'])
+          && request.resource.data.medlemmer.toSet() == resource.data.medlemmer.toSet().union([request.auth.uid].toSet())
+          && request.resource.data.inviterede.toSet() == resource.data.inviterede.toSet().difference([egenEmail()].toSet())
+          && request.resource.data.navne.diff(resource.data.navne).affectedKeys().hasOnly([request.auth.uid])
+          && request.resource.data.navne[request.auth.uid] is string)
+      );
+
+      // Hvert medlems ur og skjulte genveje i teamet.
+      match /personer/{uid} {
+        allow read: if medlem();
+        allow create, update: if medlem() && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['ur', 'skjult'])
+          && gyldigtUr(request.resource.data.get('ur', null))
+          && (!('skjult' in request.resource.data) || request.resource.data.skjult is map);
+      }
+
+      match /kunder/{id} {
+        allow read, delete: if medlem();
+        allow create, update: if medlem() && gyldigKunde();
+      }
+
+      match /opgavetyper/{id} {
+        allow read, delete: if medlem();
+        allow create, update: if medlem() && gyldigType();
+      }
+
+      match /registreringer/{id} {
+        allow read, delete: if medlem();
+        allow create, update: if medlem()
+          && felter(['kundeId', 'opgavetypeId', 'start', 'slut', 'timepris', 'person'],
+                    ['kundeId', 'opgavetypeId', 'start', 'slut', 'timepris', 'note', 'person'])
+          && gyldigReg()
+          && request.resource.data.person in team().medlemmer;
+      }
+
+      match /poster/{id} {
+        allow read, delete: if medlem();
+        allow create, update: if medlem() && gyldigPost();
       }
     }
   }

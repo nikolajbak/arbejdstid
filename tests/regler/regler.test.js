@@ -156,3 +156,85 @@ test('poster valideres', async () => {
   ]) await assertFails(setDoc(doc(ven(), 'brugere/ven/poster/p2'), daarlig), navn);
   await assertFails(setDoc(doc(admin(), 'brugere/ven/poster/p3'), p));
 });
+
+// --- Teams -----------------------------------------------------------------------
+
+import { query, where, arrayUnion, arrayRemove } from 'firebase/firestore';
+
+const tre = () => som('tre', 'tre@x.dk');
+const nyTeam = (uid = 'ven') => ({ navn: 'Holdet', medlemmer: [uid], navne: { [uid]: 'Ven' }, inviterede: [], oprettet: serverTimestamp() });
+const tReg = (person = 'ven') => ({ ...reg, person });
+
+async function medTeam(data) {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'godkendte/tre@x.dk'), { email: 'tre@x.dk', admin: false, inviteret: new Date(), uid: 'tre' });
+    await setDoc(doc(db, 'teams/t1'), { navn: 'Holdet', medlemmer: ['ven'], navne: { ven: 'Ven' }, inviterede: [], oprettet: new Date(), ...data });
+  });
+}
+
+test('godkendt bruger kan oprette et team med kun sig selv', async () => {
+  await assertSucceeds(setDoc(doc(ven(), 'teams/n1'), nyTeam()));
+  await assertFails(setDoc(doc(ven(), 'teams/n2'), { ...nyTeam(), medlemmer: ['ven', 'admin'] }));
+  await assertFails(setDoc(doc(ven(), 'teams/n3'), nyTeam('admin')));
+  await assertFails(setDoc(doc(som('frem', 'frem@x.dk'), 'teams/n4'), nyTeam('frem')));
+});
+
+test('kun medlemmer kan læse og skrive teamets data', async () => {
+  await medTeam();
+  await assertSucceeds(getDoc(doc(ven(), 'teams/t1')));
+  await assertSucceeds(setDoc(doc(ven(), 'teams/t1/kunder/k1'), kunde));
+  await assertFails(getDoc(doc(tre(), 'teams/t1')));
+  await assertFails(getDoc(doc(tre(), 'teams/t1/kunder/k1')));
+  await assertFails(setDoc(doc(tre(), 'teams/t1/kunder/k2'), kunde));
+});
+
+test('inviteret kan se teamet, finde det med en forespørgsel og blive medlem', async () => {
+  await medTeam({ inviterede: ['tre@x.dk'] });
+  await assertSucceeds(getDoc(doc(tre(), 'teams/t1')));
+  await assertSucceeds(getDocs(query(collection(tre(), 'teams'), where('inviterede', 'array-contains', 'tre@x.dk'))));
+  await assertSucceeds(getDocs(query(collection(ven(), 'teams'), where('medlemmer', 'array-contains', 'ven'))));
+  await assertFails(updateDoc(doc(tre(), 'teams/t1'), { medlemmer: arrayUnion('tre', 'admin'), inviterede: arrayRemove('tre@x.dk'), 'navne.tre': 'Tre' }));
+  await assertFails(updateDoc(doc(tre(), 'teams/t1'), { medlemmer: arrayUnion('tre'), inviterede: arrayRemove('tre@x.dk'), 'navne.tre': 'Tre', navn: 'Mit' }));
+  await assertSucceeds(updateDoc(doc(tre(), 'teams/t1'), { medlemmer: arrayUnion('tre'), inviterede: arrayRemove('tre@x.dk'), 'navne.tre': 'Tre' }));
+  await assertSucceeds(getDoc(doc(tre(), 'teams/t1/kunder/x')));
+});
+
+test('ikke-inviteret kan ikke melde sig ind', async () => {
+  await medTeam();
+  await assertFails(updateDoc(doc(tre(), 'teams/t1'), { medlemmer: arrayUnion('tre'), 'navne.tre': 'Tre' }));
+});
+
+test('medlem kan invitere, omdøbe og fjerne, men ikke tilføje medlemmer direkte', async () => {
+  await medTeam({ medlemmer: ['ven', 'tre'], navne: { ven: 'Ven', tre: 'Tre' } });
+  await assertSucceeds(updateDoc(doc(ven(), 'teams/t1'), { inviterede: arrayUnion('ny@x.dk'), navn: 'Nyt navn' }));
+  await assertFails(updateDoc(doc(ven(), 'teams/t1'), { medlemmer: arrayUnion('admin') }));
+  await assertFails(deleteDoc(doc(ven(), 'teams/t1')));
+  await assertSucceeds(updateDoc(doc(ven(), 'teams/t1'), { medlemmer: arrayRemove('tre') }));
+  await assertFails(getDoc(doc(tre(), 'teams/t1/kunder/k1')));
+  await assertFails(getDoc(doc(tre(), 'teams/t1')));
+});
+
+test('registrering i et team kræver person, der er medlem', async () => {
+  await medTeam({ medlemmer: ['ven', 'tre'], navne: { ven: 'Ven', tre: 'Tre' } });
+  await assertSucceeds(setDoc(doc(ven(), 'teams/t1/registreringer/r1'), tReg('tre')));
+  await assertFails(setDoc(doc(ven(), 'teams/t1/registreringer/r2'), reg));
+  await assertFails(setDoc(doc(ven(), 'teams/t1/registreringer/r3'), tReg('admin')));
+  await assertSucceeds(setDoc(doc(ven(), 'teams/t1/poster/p1'), { kundeId: 'k1', type: 'udgift', dato: '2026-10-08', beloeb: 10, note: '' }));
+  await assertFails(setDoc(doc(ven(), 'teams/t1/kunder/k3'), { ...kunde, timepris: -1 }));
+});
+
+test('personer/{uid} skrives kun af personen selv og læses af medlemmer', async () => {
+  await medTeam({ medlemmer: ['ven', 'tre'], navne: { ven: 'Ven', tre: 'Tre' } });
+  const ur = { kundeId: 'k1', opgavetypeId: '', start: '2026-10-08T08:00:00.000Z', deltagere: ['ven', 'tre'] };
+  await assertSucceeds(setDoc(doc(ven(), 'teams/t1/personer/ven'), { ur }, { merge: true }));
+  await assertSucceeds(setDoc(doc(ven(), 'teams/t1/personer/ven'), { skjult: { a: 'b' } }, { merge: true }));
+  await assertFails(setDoc(doc(ven(), 'teams/t1/personer/tre'), { ur: null }));
+  await assertFails(setDoc(doc(ven(), 'teams/t1/personer/ven'), { ur: { ...ur, deltagere: 'tre' } }));
+  await assertSucceeds(getDoc(doc(tre(), 'teams/t1/personer/ven')));
+});
+
+test('ur med deltagere accepteres også i egen profil', async () => {
+  await assertSucceeds(setDoc(doc(ven(), 'brugere/ven'), { email: 'ven@x.dk', oprettet: serverTimestamp(),
+    ur: { kundeId: 'k1', opgavetypeId: '', start: '2026-10-08T08:00:00.000Z', deltagere: [] } }));
+});
