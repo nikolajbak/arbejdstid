@@ -192,11 +192,15 @@ export function forPersoner(base, personer, nyId) {
   return personer.map((person) => ({ id: nyId(), ...base, person }));
 }
 
+// Deltagerne, der stadig er medlemmer. medlemmer er null i Mig.
+const aktiveDeltagere = (ur, medlemmer) => (ur?.deltagere ?? []).filter((p) => !medlemmer || medlemmer.includes(p));
+
 // Registreringerne for et stoppet ur: én pr. deltager, ellers én for personen.
-// person er null i Mig.
-export function registreringerFraUr(ur, { slut, timepris, opgavetypeId, note, person = null, nyId }) {
+// person er null i Mig. Fjernede medlemmer springes over; databasen afviser dem.
+export function registreringerFraUr(ur, { slut, timepris, opgavetypeId, note, person = null, nyId, medlemmer = null }) {
   const base = { kundeId: ur.kundeId, opgavetypeId: opgavetypeId ?? '', start: ur.start, slut, timepris, note: note ?? '' };
-  const personer = ur.deltagere?.length ? ur.deltagere : person ? [person] : [];
+  const deltagere = aktiveDeltagere(ur, medlemmer);
+  const personer = deltagere.length ? deltagere : person ? [person] : [];
   return forPersoner(base, personer, nyId);
 }
 
@@ -204,17 +208,19 @@ export const medPerson = (entries, uid) => (uid ? entries.filter((e) => e.person
 
 export const personNavn = (team, uid) => team?.navne?.[uid] ?? '(tidligere medlem)';
 
-export function skiftUr(tilstand, ny, nu, timepris, id, { person = null, nyId } = {}) {
+export function skiftUr(tilstand, ny, nu, timepris, id, { person = null, nyId, medlemmer = null } = {}) {
   const { ur } = tilstand;
   // Med forskellige ure på to enheder kan "nu" ligge før starten; den slags
   // registrering afvises af databasen, så den gemmes ikke.
   let foerste = true;
   const ider = () => (foerste ? ((foerste = false), id) : nyId());
   const registreringer = ur && new Date(nu) > new Date(ur.start)
-    ? [...tilstand.registreringer, ...registreringerFraUr(ur, { slut: nu, timepris, opgavetypeId: ur.opgavetypeId, note: ur.note, person, nyId: ider })]
+    ? [...tilstand.registreringer, ...registreringerFraUr(ur, { slut: nu, timepris, opgavetypeId: ur.opgavetypeId, note: ur.note, person, nyId: ider, medlemmer })]
     : tilstand.registreringer;
   const nytUr = { kundeId: ny.kundeId, opgavetypeId: ny.opgavetypeId ?? '', start: nu, note: '' };
-  if (ur?.deltagere?.length) nytUr.deltagere = ur.deltagere;
+  const deltagere = aktiveDeltagere(ur, medlemmer);
+  // Kun en selv tilbage: ingen deltagere.
+  if (deltagere.length && !(deltagere.length === 1 && deltagere[0] === person)) nytUr.deltagere = deltagere;
   return { ...tilstand, registreringer, ur: nytUr };
 }
 

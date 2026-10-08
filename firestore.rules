@@ -224,7 +224,9 @@ service cloud.firestore {
           && felter(['kundeId', 'opgavetypeId', 'start', 'slut', 'timepris', 'person'],
                     ['kundeId', 'opgavetypeId', 'start', 'slut', 'timepris', 'note', 'person'])
           && gyldigReg()
-          && request.resource.data.person in team().medlemmer;
+          // En rettelse må beholde en person, der siden er fjernet fra teamet.
+          && (request.resource.data.person in team().medlemmer
+            || (resource != null && request.resource.data.person == resource.data.person));
       }
 
       match /poster/{id} {

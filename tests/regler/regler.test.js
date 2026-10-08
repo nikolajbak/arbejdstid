@@ -238,3 +238,11 @@ test('ur med deltagere accepteres også i egen profil', async () => {
   await assertSucceeds(setDoc(doc(ven(), 'brugere/ven'), { email: 'ven@x.dk', oprettet: serverTimestamp(),
     ur: { kundeId: 'k1', opgavetypeId: '', start: '2026-10-08T08:00:00.000Z', deltagere: [] } }));
 });
+
+test('registrering for et fjernet medlem kan stadig rettes, men ikke flyttes til en ikke-medlem', async () => {
+  await medTeam({ medlemmer: ['ven'], navne: { ven: 'Ven', tre: 'Tre' } });
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'teams/t1/registreringer/gl'), tReg('tre')));
+  await assertSucceeds(setDoc(doc(ven(), 'teams/t1/registreringer/gl'), { ...tReg('tre'), note: 'rettet' }));
+  await assertFails(setDoc(doc(ven(), 'teams/t1/registreringer/gl'), tReg('admin')));
+  await assertFails(setDoc(doc(ven(), 'teams/t1/registreringer/ny'), tReg('tre')));
+});

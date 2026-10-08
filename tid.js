@@ -23,7 +23,11 @@ const gemteBesked = (r, antal = 1) => besked(`Gemte ${navnPaa(t.state.kunder, r.
 
 // Personerne uret kører for, som de står i vælgeren. Kun én selv: ingen deltagere.
 const mineValg = () => (t.team ? [t.bruger.uid] : null);
-const deltagereAf = (ur) => (ur?.deltagere?.length ? ur.deltagere : mineValg());
+// Kun deltagere, der stadig er medlemmer.
+const deltagereAf = (ur) => {
+  const aktive = (ur?.deltagere ?? []).filter((p) => t.team?.medlemmer.includes(p));
+  return aktive.length ? aktive : mineValg();
+};
 
 function medDeltagere(ur, personer) {
   const { deltagere, ...uden } = ur;
@@ -46,7 +50,7 @@ function fortsaet(kombination) {
   const gammelt = t.state.ur;
   if (!gammelt) return start(kombination);
   const id = newId();
-  t.state = skiftUr(t.state, kombination, nuIso(), timeprisPaa(gammelt.kundeId), id, { person: migITeam(), nyId: newId });
+  t.state = skiftUr(t.state, kombination, nuIso(), timeprisPaa(gammelt.kundeId), id, { person: migITeam(), nyId: newId, medlemmer: t.team?.medlemmer ?? null });
   commit();
   gemteBesked(t.state.registreringer.find((r) => r.id === id));
 }
@@ -64,7 +68,7 @@ function gemUr(ur, slut, opgavetypeId, note) {
     return;
   }
   // Én registrering pr. deltager, ellers én for en selv.
-  const nye = registreringerFraUr(ur, { slut: s, timepris: timeprisPaa(ur.kundeId), opgavetypeId, note, person: migITeam(), nyId: newId });
+  const nye = registreringerFraUr(ur, { slut: s, timepris: timeprisPaa(ur.kundeId), opgavetypeId, note, person: migITeam(), nyId: newId, medlemmer: t.team?.medlemmer ?? null });
   t.state.registreringer.push(...nye);
   t.state.ur = null;
   commit();

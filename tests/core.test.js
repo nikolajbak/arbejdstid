@@ -611,3 +611,16 @@ test('flytTilTeam fletter efter navn, sætter person og giver ingen dubletter ve
   assert.equal(igen.tilstand.kunder.length, 2);
   assert.equal(igen.tilstand.poster.length, 1);
 });
+
+test('registreringerFraUr springer deltagere over, der ikke længere er medlemmer', () => {
+  const regs = registreringerFraUr({ ...urT, deltagere: ['u1', 'u2'] }, { ...urValg('u1'), medlemmer: ['u1'] });
+  assert.deepEqual(regs.map((r) => r.person), ['u1']);
+  const ingen = registreringerFraUr({ ...urT, deltagere: ['u2'] }, { ...urValg('u1'), medlemmer: ['u1'] });
+  assert.deepEqual(ingen.map((r) => r.person), ['u1']);
+});
+
+test('skiftUr fjerner deltagere, der ikke længere er medlemmer, fra både registreringer og det nye ur', () => {
+  const ny = skiftUr({ registreringer: [], ur: { ...urT, deltagere: ['u1', 'u2'] } }, { kundeId: 'b', opgavetypeId: '' }, '2026-10-08T09:00:00.000Z', 800, 'r9', { person: 'u1', nyId: tael(), medlemmer: ['u1'] });
+  assert.deepEqual(ny.registreringer.map((r) => r.person), ['u1']);
+  assert.equal('deltagere' in ny.ur, false);
+});

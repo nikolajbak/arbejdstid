@@ -105,18 +105,20 @@ async function tilbydFlyt(teamId) {
     h('p', {}, `Vil du tage dine ${mig.kunder.length} kunder og ${mig.registreringer.length} registreringer med ind i ${navn}?`),
     h('p', { class: 'hjaelp' }, 'Du kan også gøre det senere under Indstillinger → Team.'),
     h('div', { class: 'knapper' },
-      h('button', { type: 'button', class: 'knap', onclick: () => { lukArk(); flytHertil(teamId, mig); } }, 'Flyt mine data hertil'),
+      h('button', { type: 'button', class: 'knap', onclick: () => { lukArk(); flytHertil(teamId); } }, 'Flyt mine data hertil'),
       h('button', { type: 'button', class: 'knap sekundaer', onclick: lukArk }, 'Ikke nu'),
     ),
   );
 }
 
-export async function flytHertil(teamId, mig = null) {
+// Henter altid Mig på ny, så intet ændret i mellemtiden slettes uden at blive flyttet.
+export async function flytHertil(teamId) {
   const uid = t.bruger.uid;
   const navn = t.teams.find((x) => x.id === teamId)?.navn ?? 'teamet';
   if (!navigator.onLine) return besked('Flytning kræver internet');
+  let mig;
   try {
-    mig ??= await hentData(migSted(uid).data, migSted(uid).person);
+    mig = await hentData(migSted(uid).data, migSted(uid).person);
   } catch {
     return besked('Flytning kræver internet');
   }

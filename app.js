@@ -196,6 +196,8 @@ const stedNoegle = (uid) => `arbejdstid.arbejdssted.${uid}`;
 
 // null er Mig, ellers et team-id.
 function skiftArbejdssted(id) {
+  // Et åbent ark hører til det gamle arbejdssted og må ikke gemme i det nye.
+  for (const ark of document.querySelectorAll('dialog.ark[open]')) ark.close();
   t.sky?.stop();
   t.state = null;
   t.arbejdssted = id;
