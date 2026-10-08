@@ -1,7 +1,8 @@
 // Arbejdssted og teams: vælg Mig eller et team, invitationer, sektionen Team i
 // Indstillinger og flytning af egne data ind i et team.
 
-import { dayKey, fejlTekst, normaliserEmail, personNavn } from './core.js';
+import { dayKey, fejlTekst, invitationsMail, normaliserEmail, personNavn } from './core.js';
+import { appAdresse } from './konto.js';
 import { migSted, teamSted } from './sky.js';
 import {
   opretTeam, blivMedlem, inviter, traekTilbage, fjernMedlem, omdoeb, saetMitNavn, hentData, flytData,
@@ -199,6 +200,7 @@ export function teamSektion() {
     }
     email.value = '';
     besked(`${adr} er inviteret`);
+    location.href = invitationsMail(adr, appAdresse(), team.navn);
   };
   const medlemmer = [...team.medlemmer].sort((a, b) => (a === uid ? -1 : b === uid ? 1 : personNavn(team, a).localeCompare(personNavn(team, b), 'da')));
 
@@ -229,7 +231,7 @@ export function teamSektion() {
       h('button', { type: 'submit', class: 'knap sekundaer lille' }, 'Invitér'),
     ),
     fejl,
-    h('p', { class: 'hjaelp' }, 'Personen skal være godkendt til appen af en administrator. Invitationen står under Mig ▾.'),
+    h('p', { class: 'hjaelp' }, 'Din mailapp åbner med en færdig invitation, som du selv sender. Personen skal være godkendt til appen af en administrator. Invitationen står under Mig ▾.'),
     h('div', { class: 'kort' },
       raekke('Flyt mine data hertil', 'Kunder, opgaver, registreringer og poster fra Mig', () => flytHertil(team.id)),
     ),

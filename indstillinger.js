@@ -1,9 +1,9 @@
 // Fanen Indstillinger: kunder, opgavetyper og arkene Brugere, Backup og Konto.
 
 import { teamSektion } from './teamark.js';
-import { FARVER, dayKey, farveFor, formatKr, naesteFarve, normaliserEmail, parseNumber, validateBackup } from './core.js';
+import { FARVER, dayKey, farveFor, formatKr, invitationsMail, naesteFarve, normaliserEmail, parseNumber, validateBackup } from './core.js';
 import { newId } from './store.js';
-import { logUd, inviter, fjernAdgang, saetAdmin } from './konto.js';
+import { logUd, inviter, fjernAdgang, saetAdmin, appAdresse } from './konto.js';
 import { t, commit, aendr, aktive, arkiverede } from './tilstand.js';
 import { h, aabnArk, lukArk, arkTop, chip, felt, ikon, prik, besked, downloadFile } from './ui.js';
 
@@ -230,13 +230,14 @@ function brugereArk() {
         inviter(ny).catch(kunneIkkeGemme);
         email.value = '';
         besked(`Inviterede ${ny}`);
+        location.href = invitationsMail(ny, appAdresse());
       },
     },
       felt('Invitér med e-mail', email),
       h('button', { class: 'knap', type: 'submit' }, 'Invitér'),
     ),
     brugerBesked,
-    h('p', { class: 'hjaelp' }, 'Fortæl selv den inviterede adressen på appen. Personen opretter en konto med den e-mail, du har inviteret.'),
+    h('p', { class: 'hjaelp' }, 'Din mailapp åbner med en færdig invitation, som du selv sender. Personen opretter en konto med den e-mail, du har inviteret.'),
   );
 }
 

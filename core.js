@@ -421,6 +421,23 @@ export function normaliserEmail(s) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) ? e : null;
 }
 
+// Et mailto-link med en færdig invitation, som åbnes i brugerens egen mailapp.
+// Appen sender ikke selv mails. encodeURIComponent giver %20 for mellemrum;
+// et + ville stå som + i flere mailapps.
+export function invitationsMail(til, adresse, team = null) {
+  const emne = team ? `Invitation til teamet ${team} i Arbejdstid` : 'Invitation til Arbejdstid';
+  const tekst = [
+    'Hej',
+    '',
+    team ? `Du er inviteret til teamet ${team} i Arbejdstid.` : 'Du er inviteret til Arbejdstid.',
+    '',
+    `Åbn appen her: ${adresse}`,
+    `Log ind eller opret en konto med denne e-mail: ${til}`,
+    ...(team ? ['Når du er logget ind, står invitationen under Mig ▾ øverst i appen.'] : []),
+  ].join('\n');
+  return `mailto:${til}?subject=${encodeURIComponent(emne)}&body=${encodeURIComponent(tekst)}`;
+}
+
 const FEJL = {
   'auth/invalid-credential': 'Forkert e-mail eller adgangskode.',
   'auth/wrong-password': 'Forkert e-mail eller adgangskode.',

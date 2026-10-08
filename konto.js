@@ -10,7 +10,7 @@ import { auth, db } from './firebase.js';
 import { normaliserEmail } from './core.js';
 
 const godkendelse = (email) => doc(db, 'godkendte', normaliserEmail(email));
-const appAdresse = () => location.origin + location.pathname;
+export const appAdresse = () => location.origin + location.pathname;
 
 // --- Login ------------------------------------------------------------------
 

@@ -624,3 +624,22 @@ test('skiftUr fjerner deltagere, der ikke længere er medlemmer, fra både regis
   assert.deepEqual(ny.registreringer.map((r) => r.person), ['u1']);
   assert.equal('deltagere' in ny.ur, false);
 });
+
+import { invitationsMail } from '../core.js';
+
+test('invitationsMail bygger et mailto-link med appens adresse', () => {
+  const url = new URL(invitationsMail('ven@mail.dk', 'https://x.dk/app/'));
+  assert.equal(url.protocol, 'mailto:');
+  assert.equal(url.pathname, 'ven@mail.dk');
+  const tekst = url.searchParams.get('body');
+  assert.match(url.searchParams.get('subject'), /Arbejdstid/);
+  assert.match(tekst, /https:\/\/x\.dk\/app\//);
+  assert.match(tekst, /ven@mail\.dk/);
+  assert.doesNotMatch(url.href, /\+/, 'mellemrum skal være %20, ikke +');
+});
+
+test('invitationsMail nævner teamet, når der er et', () => {
+  const url = new URL(invitationsMail('ven@mail.dk', 'https://x.dk/', 'Kontoret & Co'));
+  assert.match(url.searchParams.get('subject'), /Kontoret & Co/);
+  assert.match(url.searchParams.get('body'), /Kontoret & Co/);
+});
