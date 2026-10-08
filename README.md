@@ -115,8 +115,12 @@ emulatoren.
    mappe `/ (root)`.
 3. Efter et minut ligger appen på `https://<brugernavn>.github.io/<repo>/`.
 
-**Ved hver ny version:** hæv `CACHE` i `sw.js` (fx `arbejdstid-v4`). Ellers
-bliver telefonerne ved med at vise den gamle version fra cachen.
+**Nye versioner kommer af sig selv.** Service workeren henter appens filer fra
+nettet først (cachen bruges kun uden net), og når appen kommer frem igen, tjekker
+den efter ændrede filer og genindlæser. Er man midt i et ark eller et felt,
+venter den, til appen lægges væk. Der skal ikke hæves noget versionsnummer.
+Tilføjes en ny `.js`-fil, skal den dog med i `FILER` i `sw.js`, så den også
+virker uden net.
 
 **Ændres `firestore.rules`, skal reglerne udgives igen** i Firebase-konsollen
 (Firestore → Regler → indsæt → Udgiv). Version 3 (det nye design) kræver det:

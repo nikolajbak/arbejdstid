@@ -35,7 +35,29 @@
   </nav>
   <div id="besked" role="status" aria-live="polite"></div>
   <script>
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js');
+      // Nye versioner hentes uden at appen skal lukkes: når den kommer frem igen
+      // (eller hver halve time), spørger vi service workeren om der er nyt, og
+      // genindlæser. Er brugeren midt i noget, venter vi til appen lægges væk.
+      let sidst = Date.now();
+      let venter = false;
+      const iGang = () => document.querySelector('dialog[open]')
+        || document.activeElement?.matches('input, textarea, select, [contenteditable]');
+      const genindlaes = () => { if (document.hidden || !iGang()) location.reload(); else venter = true; };
+      const tjek = () => {
+        if (Date.now() - sidst < 60000) return;
+        sidst = Date.now();
+        navigator.serviceWorker.getRegistration().then((r) => r?.update()).catch(() => {});
+        navigator.serviceWorker.controller?.postMessage('tjek');
+      };
+      navigator.serviceWorker.addEventListener('message', (e) => { if (e.data?.nyt) genindlaes(); });
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) { if (venter) location.reload(); }
+        else tjek();
+      });
+      setInterval(() => { if (!document.hidden) tjek(); }, 30 * 60000);
+    }
     // Ingen zoom med to fingre i Safari.
     document.addEventListener('gesturestart', (e) => e.preventDefault());
   </script>
