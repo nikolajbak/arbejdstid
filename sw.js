@@ -1,5 +1,5 @@
 // Hæv versionen ved hver ny udgivelse, så telefonerne henter de nye filer.
-const CACHE = 'arbejdstid-v2';
+const CACHE = 'arbejdstid-v3';
 const FIREBASE = 'https://www.gstatic.com/firebasejs/13.0.0/';
 const FILER = [
   './',
@@ -12,6 +12,13 @@ const FILER = [
   'firebase.js',
   'konto.js',
   'sky.js',
+  'tilstand.js',
+  'ui.js',
+  'vaelger.js',
+  'registrering.js',
+  'tid.js',
+  'historik.js',
+  'indstillinger.js',
   'manifest.webmanifest',
   'icons/icon-192.png',
   'icons/icon-512.png',

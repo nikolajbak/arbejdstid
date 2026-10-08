@@ -1,8 +1,22 @@
 # Arbejdstid
 
-Simpel timeregistrering for selvstændige med flere kunder. Registrér tid pr.
-kunde og opgavetype, hver kunde med sin egen timepris, og få en oversigt og
-CSV-fil til fakturering.
+Simpel timeregistrering for selvstændige med flere kunder. Start og stop et ur
+pr. kunde (opgaven er valgfri), hver kunde med sin egen timepris og farve, og
+få et overblik og en CSV-fil til fakturering.
+
+## Sådan bruges den
+
+- **Tid:** tryk **Start ny**, vælg eller opret kunden (og eventuelt en opgave),
+  og tryk Start. **Fortsæt** viser de seneste kombinationer: ét tryk starter
+  uret, og kører et andet ur, gemmes det først. **Stop** gemmer; uden opgave
+  spørger appen, hvad du lavede. Tryk på kundenavnet på uret for at skifte
+  kunde, opgave eller note, og på "Startet" for at rette starttiden. Glemt at
+  starte uret? **+ Tilføj tid**.
+- **Historik:** vælg måned med pilene eller tryk på titlen for uge, sidste
+  måned eller egen periode. Tryk på en kunde for fordelingen pr. opgave, og på
+  en registrering for at rette den. **Eksportér CSV** til fakturering.
+- **Indstillinger:** kunder (navn, timepris, farve), opgavetyper, og under Mere:
+  Brugere (administratorer), Backup og Konto.
 
 Appen er en PWA: den kører i browseren, kan lægges på hjemmeskærmen og virker
 uden net. Kun inviterede brugere kan logge ind. Hver brugers data gemmes i
@@ -66,7 +80,7 @@ emulatoren.
 
 ## Brugere
 
-- **Invitér:** Indstillinger → Brugere → skriv e-mailen → Invitér. Fortæl selv
+- **Invitér:** Indstillinger → Mere → Brugere → skriv e-mailen → Invitér. Fortæl selv
   personen adressen på appen. Personen trykker Opret konto med den e-mail og
   bekræfter den.
 - **Fjern adgang / administrator:** tryk på brugeren i listen. Data slettes
@@ -79,8 +93,13 @@ emulatoren.
    mappe `/ (root)`.
 3. Efter et minut ligger appen på `https://<brugernavn>.github.io/<repo>/`.
 
-**Ved hver ny version:** hæv `CACHE` i `sw.js` (fx `arbejdstid-v2`). Ellers
+**Ved hver ny version:** hæv `CACHE` i `sw.js` (fx `arbejdstid-v4`). Ellers
 bliver telefonerne ved med at vise den gamle version fra cachen.
+
+**Ændres `firestore.rules`, skal reglerne udgives igen** i Firebase-konsollen
+(Firestore → Regler → indsæt → Udgiv). Version 3 (det nye design) kræver det:
+kunder har nu en farve, og registreringer kan være uden opgave. Udgives
+reglerne ikke, afvises de nye ændringer.
 
 ## Installér på iPhone
 
@@ -97,5 +116,5 @@ sammen. De gamle data slettes ikke, men gemmes til side på telefonen.
 ## Backup
 
 Data ligger på kontoen. En backup er en ekstra sikkerhed: Indstillinger →
-Backup → Eksportér, og gem filen i Filer eller iCloud Drive. Import erstatter
+Mere → Backup → Eksportér backup, og gem filen i Filer eller iCloud Drive. Import erstatter
 kontoens data med backuppen.
