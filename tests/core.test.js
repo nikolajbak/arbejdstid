@@ -274,3 +274,97 @@ test('forskel ser et udefineret felt som fraværende', () => {
   const ur = { kundeId: 'a', opgavetypeId: 't', start: 's' };
   assert.deepEqual(forskel({ ...tom(), ur: { ...ur, note: undefined } }, { ...tom(), ur }), []);
 });
+
+// --- Redesign: farver, fortsæt, skift og valgfri opgave ----------------------
+
+import {
+  FARVER, farveFor, naesteFarve, senesteKombinationer, skiftUr, UDEN_OPGAVE,
+} from '../core.js';
+
+test('FARVER har de otte nøgler i fast rækkefølge', () => {
+  assert.deepEqual(FARVER, ['skov', 'ler', 'indigo', 'blomme', 'rosa', 'okker', 'hav', 'skifer']);
+});
+
+test('farveFor bruger kundens farve eller en fast farve ud fra id', () => {
+  assert.equal(farveFor({ id: 'x', farve: 'ler' }), 'ler');
+  assert.equal(farveFor({ id: 'abc' }), farveFor({ id: 'abc' }));
+  assert.ok(FARVER.includes(farveFor({ id: 'abc' })));
+  assert.equal(farveFor({ id: 'abc', farve: 'lilla' }), farveFor({ id: 'abc' }));
+  assert.ok(FARVER.includes(farveFor(undefined)));
+});
+
+test('naesteFarve vælger den mindst brugte, første ved lighed', () => {
+  assert.equal(naesteFarve([]), 'skov');
+  assert.equal(naesteFarve([{ farve: 'skov' }]), 'ler');
+  assert.equal(naesteFarve([{ farve: 'skov', arkiveret: true }]), 'skov');
+  assert.equal(naesteFarve(FARVER.map((farve) => ({ farve })).concat([{ farve: 'skov' }])), 'ler');
+});
+
+const r = (id, kundeId, opgavetypeId, slut) => ({ id, kundeId, opgavetypeId, start: '2026-10-01T08:00:00.000Z', slut, timepris: 1, note: '' });
+const kunderK = ['a', 'b', 'c', 'd', 'e'].map((id) => ({ id, navn: id, timepris: 1, arkiveret: false }));
+const typerK = [{ id: 't', navn: 't', arkiveret: false }, { id: 'gl', navn: 'gl', arkiveret: true }];
+
+test('senesteKombinationer: unikke, nyeste først, højst 4', () => {
+  const regs = [
+    r('1', 'a', 't', '2026-10-01T09:00:00.000Z'),
+    r('2', 'b', 't', '2026-10-02T09:00:00.000Z'),
+    r('3', 'c', '', '2026-10-03T09:00:00.000Z'),
+    r('4', 'a', 't', '2026-10-04T09:00:00.000Z'),
+    r('5', 'd', 't', '2026-10-05T09:00:00.000Z'),
+    r('6', 'e', 't', '2026-10-06T09:00:00.000Z'),
+  ];
+  assert.deepEqual(senesteKombinationer(regs, kunderK, typerK, null), [
+    { kundeId: 'e', opgavetypeId: 't' },
+    { kundeId: 'd', opgavetypeId: 't' },
+    { kundeId: 'a', opgavetypeId: 't' },
+    { kundeId: 'c', opgavetypeId: '' },
+  ]);
+});
+
+test('senesteKombinationer udelader arkiverede kunder/typer og det kørende ur, men tillader tom opgave', () => {
+  const kunder = [...kunderK, { id: 'x', navn: 'x', timepris: 1, arkiveret: true }];
+  const regs = [
+    r('1', 'a', '', '2026-10-01T09:00:00.000Z'),
+    r('2', 'x', 't', '2026-10-02T09:00:00.000Z'),
+    r('3', 'b', 'gl', '2026-10-03T09:00:00.000Z'),
+    r('4', 'c', 't', '2026-10-04T09:00:00.000Z'),
+    r('5', 'slettet', 't', '2026-10-05T09:00:00.000Z'),
+    r('6', 'd', 'slettet', '2026-10-06T09:00:00.000Z'),
+  ];
+  const ur = { kundeId: 'c', opgavetypeId: 't', start: '2026-10-07T08:00:00.000Z', note: '' };
+  assert.deepEqual(senesteKombinationer(regs, kunder, typerK, ur), [{ kundeId: 'a', opgavetypeId: '' }]);
+  assert.deepEqual(senesteKombinationer(regs, kunder, typerK, ur, 1), [{ kundeId: 'a', opgavetypeId: '' }]);
+});
+
+test('skiftUr gemmer det kørende ur og starter det nye', () => {
+  const tilstand = { kunder: [], opgavetyper: [], registreringer: [], ur: { kundeId: 'a', opgavetypeId: '', start: '2026-10-08T08:00:00.000Z', note: 'n' } };
+  const ny = skiftUr(tilstand, { kundeId: 'b', opgavetypeId: 't' }, '2026-10-08T09:30:00.000Z', 800, 'r9');
+  assert.deepEqual(ny.registreringer, [{ id: 'r9', kundeId: 'a', opgavetypeId: '', start: '2026-10-08T08:00:00.000Z', slut: '2026-10-08T09:30:00.000Z', timepris: 800, note: 'n' }]);
+  assert.deepEqual(ny.ur, { kundeId: 'b', opgavetypeId: 't', start: '2026-10-08T09:30:00.000Z', note: '' });
+  assert.equal(tilstand.registreringer.length, 0, 'tilstanden ændres ikke');
+});
+
+test('skiftUr uden kørende ur starter kun det nye', () => {
+  const ny = skiftUr({ kunder: [], opgavetyper: [], registreringer: [], ur: null }, { kundeId: 'b', opgavetypeId: '' }, '2026-10-08T09:30:00.000Z', 800, 'r9');
+  assert.deepEqual(ny.registreringer, []);
+  assert.deepEqual(ny.ur, { kundeId: 'b', opgavetypeId: '', start: '2026-10-08T09:30:00.000Z', note: '' });
+});
+
+test('summarize samler tom opgave som Uden opgave sidst', () => {
+  const regs = [r('1', 'a', '', '2026-10-01T09:00:00.000Z'), r('2', 'a', 't', '2026-10-01T09:00:00.000Z')];
+  const s = summarize(regs, kunderK, [{ id: 't', navn: 'Ågård', arkiveret: false }]);
+  assert.deepEqual(s.kunder[0].typer.map((x) => x.navn), ['Ågård', UDEN_OPGAVE]);
+  assert.equal(UDEN_OPGAVE, 'Uden opgave');
+});
+
+test('toCSV giver tomt felt for tom opgave', () => {
+  const csv = toCSV([r('1', 'a', '', '2026-10-01T09:00:00.000Z')], kunderK, typerK);
+  assert.equal(csv.split('\r\n')[1].split(';')[4], '');
+});
+
+test('validateBackup accepterer farve og tom opgave, men ikke en farve der ikke er tekst', () => {
+  const b = { version: 1, kunder: [{ id: 'a', navn: 'A', timepris: 1, farve: 'ler' }, { id: 'b', navn: 'B', timepris: 1 }], opgavetyper: [],
+    registreringer: [r('1', 'a', '', '2026-10-01T09:00:00.000Z')], ur: { kundeId: 'a', opgavetypeId: '', start: '2026-10-01T10:00:00.000Z' } };
+  assert.equal(validateBackup(b).ok, true);
+  assert.equal(validateBackup({ ...b, kunder: [{ id: 'a', navn: 'A', timepris: 1, farve: 5 }] }).ok, false);
+});

@@ -3,12 +3,11 @@ import {
   sendPasswordResetEmail, reload, signOut,
 } from 'https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js';
 import {
-  doc, collection, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, writeBatch, serverTimestamp,
+  doc, collection, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp,
   terminate, clearIndexedDbPersistence,
 } from 'https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js';
 import { auth, db } from './firebase.js';
 import { normaliserEmail } from './core.js';
-import { defaultData } from './store.js';
 
 const godkendelse = (email) => doc(db, 'godkendte', normaliserEmail(email));
 const appAdresse = () => location.origin + location.pathname;
@@ -60,12 +59,7 @@ export async function sikrProfil(user, godk) {
   if (!godk.uid) await updateDoc(godkendelse(user.email), { uid: user.uid });
   const profil = doc(db, 'brugere', user.uid);
   if ((await getDoc(profil)).exists()) return;
-  const batch = writeBatch(db);
-  batch.set(profil, { email: normaliserEmail(user.email), oprettet: serverTimestamp(), ur: null });
-  for (const { id, navn } of defaultData().opgavetyper) {
-    batch.set(doc(profil, 'opgavetyper', id), { navn, arkiveret: false });
-  }
-  await batch.commit();
+  await setDoc(profil, { email: normaliserEmail(user.email), oprettet: serverTimestamp(), ur: null });
 }
 
 export function lytBrugere(cb, fejl) {

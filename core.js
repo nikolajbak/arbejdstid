@@ -78,6 +78,59 @@ export function groupByDay(entries) {
 const navnPaa = (liste, id) => liste.find((x) => x.id === id)?.navn ?? '(slettet)';
 const efterNavn = (a, b) => a.navn.localeCompare(b.navn, 'da');
 
+export const UDEN_OPGAVE = 'Uden opgave';
+const typeNavn = (opgavetyper, id) => (id ? navnPaa(opgavetyper, id) : UDEN_OPGAVE);
+// "Uden opgave" står altid sidst.
+const typeOrden = (a, b) => (a.opgavetypeId === '') - (b.opgavetypeId === '') || efterNavn(a, b);
+
+// --- Kundefarver ---------------------------------------------------------------
+
+export const FARVER = ['skov', 'ler', 'indigo', 'blomme', 'rosa', 'okker', 'hav', 'skifer'];
+
+// Kundens egen farve, ellers en fast farve ud fra id, så den ikke skifter.
+export function farveFor(kunde) {
+  if (FARVER.includes(kunde?.farve)) return kunde.farve;
+  const id = String(kunde?.id ?? '');
+  let sum = 0;
+  for (const tegn of id) sum += tegn.codePointAt(0);
+  return FARVER[sum % FARVER.length];
+}
+
+// Den farve, færrest aktive kunder har. Ved lighed den første.
+export function naesteFarve(kunder) {
+  const antal = new Map(FARVER.map((f) => [f, 0]));
+  for (const k of kunder) if (!k.arkiveret && antal.has(k.farve)) antal.set(k.farve, antal.get(k.farve) + 1);
+  return FARVER.reduce((bedst, f) => (antal.get(f) < antal.get(bedst) ? f : bedst));
+}
+
+// --- Fortsæt og skift ------------------------------------------------------------
+
+// De seneste kombinationer af kunde og opgave, der kan fortsættes med ét tryk.
+export function senesteKombinationer(registreringer, kunder, opgavetyper, ur, antal = 4) {
+  const aktivKunde = new Set(kunder.filter((k) => !k.arkiveret).map((k) => k.id));
+  const aktivType = new Set(opgavetyper.filter((t) => !t.arkiveret).map((t) => t.id));
+  const noegle = (x) => `${x.kundeId}\u0000${x.opgavetypeId ?? ''}`;
+  const set = new Set(ur ? [noegle(ur)] : []);
+  const ud = [];
+  for (const r of [...registreringer].sort((a, b) => new Date(b.slut) - new Date(a.slut))) {
+    if (ud.length >= antal) break;
+    const opgavetypeId = r.opgavetypeId ?? '';
+    if (set.has(noegle(r)) || !aktivKunde.has(r.kundeId) || (opgavetypeId && !aktivType.has(opgavetypeId))) continue;
+    set.add(noegle(r));
+    ud.push({ kundeId: r.kundeId, opgavetypeId });
+  }
+  return ud;
+}
+
+// Gemmer det kørende ur som registrering (slut = nu) og starter et nyt.
+export function skiftUr(tilstand, ny, nu, timepris, id) {
+  const { ur } = tilstand;
+  const registreringer = ur
+    ? [...tilstand.registreringer, { id, kundeId: ur.kundeId, opgavetypeId: ur.opgavetypeId ?? '', start: ur.start, slut: nu, timepris, note: ur.note ?? '' }]
+    : tilstand.registreringer;
+  return { ...tilstand, registreringer, ur: { kundeId: ny.kundeId, opgavetypeId: ny.opgavetypeId ?? '', start: nu, note: '' } };
+}
+
 export function summarize(entries, kunder, opgavetyper) {
   const pr = new Map();
   let ms = 0;
@@ -91,13 +144,13 @@ export function summarize(entries, kunder, opgavetyper) {
     const k = pr.get(e.kundeId);
     k.ms += d;
     k.kr += a;
-    if (!k.typer.has(e.opgavetypeId)) k.typer.set(e.opgavetypeId, { opgavetypeId: e.opgavetypeId, navn: navnPaa(opgavetyper, e.opgavetypeId), ms: 0, kr: 0 });
+    if (!k.typer.has(e.opgavetypeId)) k.typer.set(e.opgavetypeId, { opgavetypeId: e.opgavetypeId, navn: typeNavn(opgavetyper, e.opgavetypeId), ms: 0, kr: 0 });
     const t = k.typer.get(e.opgavetypeId);
     t.ms += d;
     t.kr += a;
   }
   return {
-    kunder: [...pr.values()].map((k) => ({ ...k, typer: [...k.typer.values()].sort(efterNavn) })).sort(efterNavn),
+    kunder: [...pr.values()].map((k) => ({ ...k, typer: [...k.typer.values()].sort(typeOrden) })).sort(efterNavn),
     ms,
     kr,
   };
@@ -122,7 +175,7 @@ export function toCSV(entries, kunder, opgavetyper) {
       klokken(s),
       klokken(new Date(e.slut)),
       navnPaa(kunder, e.kundeId),
-      navnPaa(opgavetyper, e.opgavetypeId),
+      e.opgavetypeId ? navnPaa(opgavetyper, e.opgavetypeId) : '',
       csvTal(durationMs(e) / TIME_MS),
       csvTal(e.timepris),
       csvTal(amountOf(e)),
@@ -137,7 +190,7 @@ const erTal = (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0;
 const erDato = (v) => erTekst(v) && !Number.isNaN(new Date(v).getTime());
 const erValgfriTekst = (v) => v == null || erTekst(v);
 
-const gyldigKunde = (k) => k && erTekst(k.id) && erTekst(k.navn) && erTal(k.timepris);
+const gyldigKunde = (k) => k && erTekst(k.id) && erTekst(k.navn) && erTal(k.timepris) && erValgfriTekst(k.farve);
 const gyldigType = (t) => t && erTekst(t.id) && erTekst(t.navn);
 const gyldigReg = (r) => r && erTekst(r.id) && erTekst(r.kundeId) && erTekst(r.opgavetypeId)
   && erDato(r.start) && erDato(r.slut) && new Date(r.slut) > new Date(r.start)

@@ -7,10 +7,10 @@ const fakeStorage = (start = {}) => {
   return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), m };
 };
 
-test('tom storage giver standarddata med fire opgavetyper', () => {
+test('tom storage giver standarddata uden opgavetyper', () => {
   const d = createStore(fakeStorage()).load();
   assert.equal(d.version, 1);
-  assert.deepEqual(d.opgavetyper.map((t) => t.navn), ['Møde', 'Udvikling', 'Rådgivning', 'Transport']);
+  assert.deepEqual(d.opgavetyper, []);
   assert.equal(d.kunder.length, 0);
   assert.equal(d.ur, null);
 });
@@ -30,7 +30,7 @@ test('ugyldig JSON giver standarddata uden at kaste', () => {
 });
 
 test('ukendt version giver standarddata', () => {
-  assert.equal(createStore(fakeStorage({ 'arbejdstid.v1': '{"version":99}' })).load().opgavetyper.length, 4);
+  assert.equal(createStore(fakeStorage({ 'arbejdstid.v1': '{"version":99}' })).load().version, 1);
 });
 
 test('newId giver unikke id-strenge', () => {

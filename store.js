@@ -10,7 +10,7 @@ export function defaultData() {
   return {
     version: 1,
     kunder: [],
-    opgavetyper: ['Møde', 'Udvikling', 'Rådgivning', 'Transport'].map((navn) => ({ id: newId(), navn, arkiveret: false })),
+    opgavetyper: [],
     registreringer: [],
     ur: null,
   };
