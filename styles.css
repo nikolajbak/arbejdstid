@@ -454,3 +454,10 @@ dialog.ark::backdrop { background: rgb(0 0 0 / 0.35); animation: frem 200ms ease
 .faner button[aria-current="page"] { color: var(--tekst); }
 body.ude .faner { display: none; }
 body.ude .tekstknap { color: var(--sek); margin: 8px auto 0; display: flex; }
+
+/* --- Tid ------------------------------------------------------------------------ */
+
+h2.sektion-top { display: flex; }
+.total-i-dag { color: var(--sek); font-weight: 600; }
+.tekstknap.tilfoej { color: var(--tekst); margin: 6px 4px; }
+.kort + .tekstknap.tilfoej { margin-top: 10px; }
