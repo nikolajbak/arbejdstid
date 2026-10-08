@@ -1,8 +1,8 @@
 // Rettearket for en registrering ("Tilføj tid" og ret) og rækken i lister.
 
-import { amountOf, dayKey, durationMs, farveFor, formatDuration, formatKr, parseNumber, senesteKombinationer, validateEntry } from './core.js';
+import { amountOf, dayKey, durationMs, farveFor, forPersoner, formatDuration, formatKr, medPerson, parseNumber, personNavn, senesteKombinationer, validateEntry } from './core.js';
 import { newId } from './store.js';
-import { t, commit, aendr, kundePaa } from './tilstand.js';
+import { t, commit, aendr, kundePaa, migITeam } from './tilstand.js';
 import { h, aabnArk, lukArk, arkTop, felt, ikon, prik, klokken, lokalTid, navnPaa } from './ui.js';
 import { aabnVaelger } from './vaelger.js';
 
@@ -20,7 +20,7 @@ export function registreringsRaekke(e) {
     h('span', { class: 'streg' }),
     h('span', { class: 'hoved' },
       h('span', { class: 'titel' }, hvadTekst(e)),
-      h('span', { class: 'under' }, `${klokken(e.start)}–${klokken(e.slut)}${e.note ? ` · ${e.note}` : ''}`),
+      h('span', { class: 'under' }, `${t.team && e.person ? `${personNavn(t.team, e.person)} · ` : ''}${klokken(e.start)}–${klokken(e.slut)}${e.note ? ` · ${e.note}` : ''}`),
     ),
     h('span', { class: 'tal' },
       h('span', { class: 'titel' }, formatDuration(durationMs(e))),
@@ -33,10 +33,12 @@ export function aabnRegistrering(entry) {
   const ny = !entry;
   const nu = Date.now();
   const fraStart = new Date(nedTil5(nu) - 3600000);
-  const seneste = senesteKombinationer(t.state.registreringer, t.state.kunder, t.state.opgavetyper, null, 1)[0];
+  const seneste = senesteKombinationer(medPerson(t.state.registreringer, migITeam()), t.state.kunder, t.state.opgavetyper, null, 1)[0];
   const valg = {
     kundeId: entry?.kundeId ?? seneste?.kundeId ?? '',
     opgavetypeId: entry?.opgavetypeId ?? seneste?.opgavetypeId ?? '',
+    // Kun i et team: hvem tiden gælder for. En eksisterende registrering har én person.
+    personer: t.team ? (entry ? [entry.person ?? t.bruger.uid] : [t.bruger.uid]) : null,
   };
 
   const dato = h('input', { type: 'date', value: dayKey(entry?.start ?? fraStart), 'aria-label': 'Dato' });
@@ -48,9 +50,10 @@ export function aabnRegistrering(entry) {
   const valgRaekker = h('div', { class: 'kort' });
 
   function vaelg() {
-    aabnVaelger({ ...valg, knap: 'Gem' }, (v) => {
+    aabnVaelger({ ...valg, knap: 'Gem', enkelt: !ny }, (v) => {
       valg.kundeId = v.kundeId;
       valg.opgavetypeId = v.opgavetypeId;
+      if (v.personer) valg.personer = v.personer;
       tegnValg();
     });
   }
@@ -66,6 +69,10 @@ export function aabnRegistrering(entry) {
       h('button', { type: 'button', class: 'raekke', onclick: vaelg },
         h('span', { class: 'hoved' }, h('span', { class: 'under' }, 'Opgave'),
           h('span', { class: 'titel' }, valg.opgavetypeId ? navnPaa(t.state.opgavetyper, valg.opgavetypeId) : 'Uden opgave')),
+        ikon('hoejre')),
+      valg.personer && h('button', { type: 'button', class: 'raekke', onclick: vaelg },
+        h('span', { class: 'hoved' }, h('span', { class: 'under' }, 'Hvem'),
+          h('span', { class: 'titel' }, valg.personer.map((p) => personNavn(t.team, p)).join(', '))),
         ikon('hoejre')),
     );
   }
@@ -93,8 +100,9 @@ export function aabnRegistrering(entry) {
       if (timepris === null) return (fejl.textContent = 'Skriv en gyldig timepris');
     }
     const data = { kundeId: valg.kundeId, opgavetypeId: valg.opgavetypeId, start: s, slut: sl, timepris, note: note.value.trim() };
-    if (ny) t.state.registreringer.push({ id: newId(), ...data });
-    else aendr('registreringer', entry, data);
+    // I et team én registrering pr. valgt person; i Mig én uden person.
+    if (ny) t.state.registreringer.push(...forPersoner(data, valg.personer, newId));
+    else aendr('registreringer', entry, valg.personer ? { ...data, person: valg.personer[0] } : data);
     lukArk();
     commit();
   }

@@ -86,6 +86,15 @@ svg.ikon-play, svg.ikon-stop { fill: currentColor; stroke-width: 1.5; }
 }
 .topbar h1 { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
 #sync { color: var(--sek); font-size: 13px; white-space: nowrap; }
+.topbar-venstre { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
+.sted {
+  display: inline-flex; align-items: center; gap: 4px; max-width: 100%;
+  margin: 2px 0 0; padding: 4px 0; border: 0; background: none;
+  color: var(--sek); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer;
+}
+.sted span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sted[hidden] { display: none; }
+.sted.prik-ny::after { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--fejl); }
 #sync[hidden] { display: none; }
 
 main {
@@ -466,3 +475,8 @@ h2.sektion-top { display: flex; }
 .total-i-dag { color: var(--sek); font-weight: 600; }
 .tekstknap.tilfoej { color: var(--tekst); margin: 6px 4px; }
 .kort + .tekstknap.tilfoej { margin-top: 10px; }
+
+/* Invitér-feltet i sektionen Team */
+.inviter { display: flex; align-items: flex-end; gap: 8px; margin-top: 12px; }
+.inviter .felt { flex: 1; margin: 0; }
+.chips.personer { margin: 4px 0 8px; }

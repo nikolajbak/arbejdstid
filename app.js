@@ -6,9 +6,11 @@ import {
   lytKonto, logInd, opretKonto, sendBekraeftelse, nulstilKode, opdaterBruger, logUd,
   hentGodkendelse, lytGodkendelse, sikrProfil, lytBrugere,
 } from './konto.js';
-import { startSky } from './sky.js';
-import { t, commit, setRender } from './tilstand.js';
-import { h, felt } from './ui.js';
+import { startSky, migSted, teamSted } from './sky.js';
+import { lytMineTeams } from './team.js';
+import { t, commit, setRender, setSkift } from './tilstand.js';
+import { h, felt, besked } from './ui.js';
+import { aabnSteder } from './teamark.js';
 import { visTid } from './tid.js';
 import { visHistorik } from './historik.js';
 import { visIndstillinger, opdaterBrugere } from './indstillinger.js';
@@ -47,6 +49,7 @@ try {
 function visUde(titel, ...boern) {
   document.body.classList.add('ude');
   document.getElementById('titel').textContent = titel;
+  document.getElementById('sted').hidden = true;
   indhold.replaceChildren(...[udeBesked && h('p', { class: 'fejl' }, udeBesked), ...boern].flat(Infinity).filter(Boolean));
 }
 
@@ -147,19 +150,26 @@ async function efterLogin(user) {
   }
   t.bruger = user;
   udeBesked = null;
-  t.sky = startSky(user.uid, {
-    data(d) {
-      const foerste = !t.state;
-      t.state = d;
-      if (foerste) document.body.classList.remove('ude');
-      render();
-      if (foerste) tilbydOverfoersel();
-    },
-    status(v) {
-      t.ventende = v;
-      document.getElementById('sync').hidden = !v;
-    },
-    fejl: skyFejl,
+  // Arbejdsstedet åbnes, når listen over teams er kendt, så et husket team kan
+  // tjekkes. Fejler listen (fx før reglerne er udgivet), åbnes Mig.
+  let gemt = null;
+  try { gemt = localStorage.getItem(stedNoegle(user.uid)); } catch {}
+  let startet = false;
+  const aabnFoerste = () => {
+    if (startet) return;
+    startet = true;
+    skiftArbejdssted(gemt && t.teams.some((x) => x.id === gemt) ? gemt : null);
+  };
+  lytMineTeams(user.uid, user.email, ({ teams, invitationer }) => {
+    t.teams = teams;
+    t.invitationer = invitationer;
+    if (!startet) return aabnFoerste();
+    if (t.arbejdssted && !teams.some((x) => x.id === t.arbejdssted)) return udAfTeam();
+    t.team = teams.find((x) => x.id === t.arbejdssted) ?? null;
+    render();
+  }, (err) => {
+    console.error(err);
+    aabnFoerste();
   });
   // Firestore afbryder ikke kørende lyttere, når adgangen fjernes, så det
   // opdages via brugerens eget dokument på listen over godkendte.
@@ -177,6 +187,53 @@ async function efterLogin(user) {
     }
     if (fane === 'indstillinger') render();
   });
+}
+
+// --- Arbejdssted ----------------------------------------------------------
+
+// Pr. bruger, så to konti på samme telefon ikke deler valget.
+const stedNoegle = (uid) => `arbejdstid.arbejdssted.${uid}`;
+
+// null er Mig, ellers et team-id.
+function skiftArbejdssted(id) {
+  t.sky?.stop();
+  t.state = null;
+  t.arbejdssted = id;
+  t.team = id ? t.teams.find((x) => x.id === id) ?? null : null;
+  try { localStorage.setItem(stedNoegle(t.bruger.uid), id ?? ''); } catch {}
+  indhold.replaceChildren(h('p', { class: 'tom' }, 'Henter …'));
+  visSted();
+  const uid = t.bruger.uid;
+  t.sky = startSky(id ? teamSted(id, uid) : migSted(uid), {
+    data(d) {
+      const foerste = !t.state;
+      t.state = d;
+      if (foerste) document.body.classList.remove('ude');
+      render();
+      if (foerste && !id) tilbydOverfoersel();
+    },
+    status(v) {
+      t.ventende = v;
+      document.getElementById('sync').hidden = !v;
+    },
+    fejl: skyFejl,
+  });
+}
+
+setSkift(skiftArbejdssted);
+
+// Man er fjernet fra teamet (eller har meldt sig ud): tilbage til Mig.
+function udAfTeam() {
+  const navn = t.team?.navn ?? 'teamet';
+  skiftArbejdssted(null);
+  besked(`Du er ikke længere med i ${navn}`);
+}
+
+function visSted() {
+  const knap = document.getElementById('sted');
+  knap.hidden = false;
+  knap.firstChild.textContent = t.team?.navn ?? 'Mig';
+  knap.classList.toggle('prik-ny', t.invitationer.length > 0);
 }
 
 function adgangFjernet() {
@@ -212,7 +269,8 @@ function tilbydOverfoersel() {
 
 // En lytter afvist af reglerne betyder, at adgangen er fjernet.
 function skyFejl(err, hvor) {
-  if (hvor === 'lyt' && err.code === 'permission-denied') return adgangFjernet();
+  // I et team betyder en afvist lytter, at man ikke længere er medlem.
+  if (hvor === 'lyt' && err.code === 'permission-denied') return t.arbejdssted ? udAfTeam() : adgangFjernet();
   console.error(err);
 }
 
@@ -221,6 +279,7 @@ function skyFejl(err, hvor) {
 function render() {
   if (!t.state) return;
   document.getElementById('titel').textContent = FANER[fane].titel;
+  visSted();
   for (const b of document.querySelectorAll('.faner button')) {
     if (b.dataset.fane === fane) b.setAttribute('aria-current', 'page');
     else b.removeAttribute('aria-current');
@@ -233,5 +292,6 @@ setRender(render);
 for (const b of document.querySelectorAll('.faner button')) {
   b.addEventListener('click', () => skiftFane(b.dataset.fane));
 }
+document.getElementById('sted').addEventListener('click', aabnSteder);
 
 lytKonto(efterLogin);

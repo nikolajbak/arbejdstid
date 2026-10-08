@@ -1,6 +1,6 @@
 // Vælgerarket: vælg (eller opret) kunde og eventuelt opgave.
 
-import { farveFor, naesteFarve, parseNumber } from './core.js';
+import { farveFor, naesteFarve, parseNumber, personNavn } from './core.js';
 import { newId } from './store.js';
 import { t, commit, aktive } from './tilstand.js';
 import { h, aabnArk, lukArk, arkTop, chip, felt, ikon, prik } from './ui.js';
@@ -11,8 +11,11 @@ const efterNavn = (a, b) => a.navn.localeCompare(b.navn, 'da');
 // paaValg({ kundeId, opgavetypeId, note }) kaldes, når brugeren bekræfter.
 // En ny kunde oprettes først ved bekræftelse; en ny opgave oprettes med det samme.
 // udenOpgave skjuler opgavedelen, fx for en post.
-export function aabnVaelger({ kundeId = '', opgavetypeId = '', knap, note = '', visNote = false, ekstra = null, udenOpgave = false } = {}, paaValg) {
+// personer (kun i et team) viser sektionen Hvem; enkelt tillader kun én person.
+export function aabnVaelger({ kundeId = '', opgavetypeId = '', knap, note = '', visNote = false, ekstra = null, udenOpgave = false, personer = null, enkelt = false } = {}, paaValg) {
   let valgtKunde = kundeId;
+  let valgtePersoner = personer ? [...personer] : null;
+  const hvem = h('div', { class: 'chips' });
   let valgtType = opgavetypeId ?? '';
   // { navn, farve } når brugeren er ved at oprette en ny kunde.
   let nyKunde = null;
@@ -109,6 +112,22 @@ export function aabnVaelger({ kundeId = '', opgavetypeId = '', knap, note = '', 
     );
   }
 
+  function tegnHvem() {
+    const uid = t.bruger.uid;
+    // Man selv først, så de andre efter navn. Fjernede personer på en gammel registrering vises også.
+    const alle = [...new Set([...t.team.medlemmer, ...valgtePersoner])]
+      .sort((a, b) => (a === uid ? -1 : b === uid ? 1 : personNavn(t.team, a).localeCompare(personNavn(t.team, b), 'da')));
+    hvem.replaceChildren(...alle.map((p) => chip(p === uid ? `${personNavn(t.team, p)} (dig)` : personNavn(t.team, p), {
+      valgt: valgtePersoner.includes(p),
+      onclick: () => {
+        if (enkelt) valgtePersoner = [p];
+        else if (!valgtePersoner.includes(p)) valgtePersoner = [...valgtePersoner, p];
+        else if (valgtePersoner.length > 1) valgtePersoner = valgtePersoner.filter((x) => x !== p);
+        tegnHvem();
+      },
+    })));
+  }
+
   function bekraeftValg() {
     fejl.textContent = '';
     let id = valgtKunde;
@@ -121,17 +140,21 @@ export function aabnVaelger({ kundeId = '', opgavetypeId = '', knap, note = '', 
     }
     if (!id) return (fejl.textContent = 'Vælg en kunde');
     lukArk();
-    paaValg({ kundeId: id, opgavetypeId: valgtType, note: noteFelt ? noteFelt.value.trim() : note });
+    paaValg({ kundeId: id, opgavetypeId: valgtType, note: noteFelt ? noteFelt.value.trim() : note, personer: valgtePersoner });
   }
 
+  const visHvem = valgtePersoner && t.team;
   tegnKunder();
   tegnTyper();
+  if (visHvem) tegnHvem();
   aabnArk(
     arkTop(knap === 'Start' ? 'Start ur' : udenOpgave ? 'Kunde' : 'Kunde og opgave'),
     h('div', { class: 'soeg' }, ikon('soeg'), soeg),
     kundeliste,
     !udenOpgave && h('div', { class: 'ark-overskrift' }, h('h3', {}, 'Opgave'), h('span', { class: 'valgfri' }, 'valgfri')),
     !udenOpgave && typer,
+    visHvem && h('div', { class: 'ark-overskrift' }, h('h3', {}, 'Hvem'), !enkelt && h('span', { class: 'valgfri' }, 'vælg flere')),
+    visHvem && hvem,
     noteFelt && felt('Note', noteFelt),
     fejl,
     bekraeft,

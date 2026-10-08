@@ -1,8 +1,8 @@
 // Fanen Historik: periode, overblik pr. kunde og registreringer dag for dag.
 
-import { dayKey, farveFor, formatDuration, formatKr, groupByDay, inPeriod, monthRange, postBeloeb, saldoer, summarize, toCSV } from './core.js';
+import { dayKey, farveFor, formatDuration, formatKr, groupByDay, inPeriod, medPerson, monthRange, personNavn, postBeloeb, saldoer, summarize, toCSV } from './core.js';
 import { t, render, kundePaa } from './tilstand.js';
-import { h, aabnArk, lukArk, arkTop, downloadFile, felt, ikon, prik } from './ui.js';
+import { h, aabnArk, lukArk, arkTop, chip, downloadFile, felt, ikon, prik } from './ui.js';
 import { registreringsRaekke } from './registrering.js';
 import { aabnPost, postRaekke } from './post.js';
 
@@ -10,6 +10,22 @@ const DAG_MS = 86400000;
 
 // { type: 'maaned' | 'uge', offset } eller { type: 'egen', fra, til } (datoer som 'YYYY-MM-DD', begge med).
 let periode = { type: 'maaned', offset: 0 };
+
+// Kun i et team: null er alle, ellers en persons uid. Nulstilles ved skift af arbejdssted.
+let person = null;
+let personSted = null;
+
+function personVaelger() {
+  if (!t.team) return null;
+  const uid = t.bruger.uid;
+  const andre = t.team.medlemmer.filter((p) => p !== uid).sort((a, b) => personNavn(t.team, a).localeCompare(personNavn(t.team, b), 'da'));
+  const vaelg = (p) => () => { person = p; render(); };
+  return h('div', { class: 'chips personer' },
+    chip('Alle', { valgt: person === null, onclick: vaelg(null) }),
+    chip('Mig', { valgt: person === uid, onclick: vaelg(uid) }),
+    andre.map((p) => chip(personNavn(t.team, p), { valgt: person === p, onclick: vaelg(p) })),
+  );
+}
 
 function ugeRange(offset) {
   const i = new Date();
@@ -121,7 +137,7 @@ function overblik(entries, poster, g) {
     h('div', { class: 'fod' },
       h('button', {
         class: 'knap sekundaer',
-        onclick: () => downloadFile(filnavn, toCSV(entries, t.state.kunder, t.state.opgavetyper, poster), 'text/csv;charset=utf-8'),
+        onclick: () => downloadFile(filnavn, toCSV(entries, t.state.kunder, t.state.opgavetyper, poster, t.team ? (p) => personNavn(t.team, p) : null), 'text/csv;charset=utf-8'),
       }, 'Eksportér CSV'),
       h('p', { class: 'hjaelp' }, 'Beløb er ekskl. moms.'),
     ),
@@ -164,14 +180,19 @@ function dagListe(entries, poster) {
 }
 
 export function visHistorik() {
+  if (personSted !== t.arbejdssted) {
+    personSted = t.arbejdssted;
+    person = null;
+  }
   const g = graenser();
-  const entries = t.state.registreringer.filter((e) => inPeriod(e, g.from, g.to));
+  const entries = medPerson(t.state.registreringer, t.team ? person : null).filter((e) => inPeriod(e, g.from, g.to));
   const poster = t.state.poster.filter((p) => {
     const d = new Date(`${p.dato}T00:00`);
     return d >= g.from && d < g.to;
   });
-  if (!entries.length && !poster.length) return [periodeVaelger(g), h('p', { class: 'tom' }, 'Intet registreret i perioden.'), saldoKort()];
+  if (!entries.length && !poster.length) return [personVaelger(), periodeVaelger(g), h('p', { class: 'tom' }, 'Intet registreret i perioden.'), saldoKort()];
   return [
+    personVaelger(),
     periodeVaelger(g),
     overblik(entries, poster, g),
     saldoKort(),

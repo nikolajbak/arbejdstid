@@ -1,8 +1,8 @@
 // Fanen Tid: urkortet, Start igen og dagens registreringer.
 
-import { amountOf, dayKey, durationMs, farveFor, formatDuration, formatKr, senesteKombinationer, sidenTekst, skiftUr, skjulKombination } from './core.js';
+import { amountOf, dayKey, durationMs, farveFor, formatDuration, formatKr, medPerson, personNavn, registreringerFraUr, senesteKombinationer, sidenTekst, skiftUr, skjulKombination } from './core.js';
 import { newId } from './store.js';
-import { t, commit, aktive, kundePaa } from './tilstand.js';
+import { t, commit, aktive, kundePaa, migITeam } from './tilstand.js';
 import { h, aabnArk, lukArk, arkTop, besked, chip, felt, ikon, klokken, lokalTid, navnPaa, p2 } from './ui.js';
 import { aabnVaelger } from './vaelger.js';
 import { aabnTilfoej, postRaekke } from './post.js';
@@ -17,12 +17,22 @@ function urTekst(start) {
   return `${formatDuration(ms)}:${p2(Math.floor(ms / 1000) % 60)}`;
 }
 
-const gemteBesked = (r) => besked(`Gemte ${navnPaa(t.state.kunder, r.kundeId)} · ${formatDuration(durationMs(r))}`);
+const gemteBesked = (r, antal = 1) => besked(`Gemte ${navnPaa(t.state.kunder, r.kundeId)} · ${formatDuration(durationMs(r))}${antal > 1 ? ` × ${antal} personer` : ''}`);
 
 // --- Start, skift og stop -------------------------------------------------------
 
-function start({ kundeId, opgavetypeId, note = '' }) {
-  t.state.ur = { kundeId, opgavetypeId: opgavetypeId ?? '', start: nuIso(), note };
+// Personerne uret kører for, som de står i vælgeren. Kun én selv: ingen deltagere.
+const mineValg = () => (t.team ? [t.bruger.uid] : null);
+const deltagereAf = (ur) => (ur?.deltagere?.length ? ur.deltagere : mineValg());
+
+function medDeltagere(ur, personer) {
+  const { deltagere, ...uden } = ur;
+  const alene = !personer || (personer.length === 1 && personer[0] === t.bruger.uid);
+  return alene ? uden : { ...uden, deltagere: personer };
+}
+
+function start({ kundeId, opgavetypeId, note = '', personer = null }) {
+  t.state.ur = medDeltagere({ kundeId, opgavetypeId: opgavetypeId ?? '', start: nuIso(), note }, personer);
   commit();
 }
 
@@ -36,7 +46,7 @@ function fortsaet(kombination) {
   const gammelt = t.state.ur;
   if (!gammelt) return start(kombination);
   const id = newId();
-  t.state = skiftUr(t.state, kombination, nuIso(), timeprisPaa(gammelt.kundeId), id);
+  t.state = skiftUr(t.state, kombination, nuIso(), timeprisPaa(gammelt.kundeId), id, { person: migITeam(), nyId: newId });
   commit();
   gemteBesked(t.state.registreringer.find((r) => r.id === id));
 }
@@ -53,19 +63,12 @@ function gemUr(ur, slut, opgavetypeId, note) {
     commit();
     return;
   }
-  const r = {
-    id: newId(),
-    kundeId: ur.kundeId,
-    opgavetypeId,
-    start: ur.start,
-    slut: s,
-    timepris: timeprisPaa(ur.kundeId),
-    note,
-  };
-  t.state.registreringer.push(r);
+  // Én registrering pr. deltager, ellers én for en selv.
+  const nye = registreringerFraUr(ur, { slut: s, timepris: timeprisPaa(ur.kundeId), opgavetypeId, note, person: migITeam(), nyId: newId });
+  t.state.registreringer.push(...nye);
   t.state.ur = null;
   commit();
-  gemteBesked(r);
+  gemteBesked(nye[0], nye.length);
 }
 
 function stop() {
@@ -131,9 +134,9 @@ function retUr() {
       commit();
     },
   }, 'Annullér ur');
-  aabnVaelger({ kundeId: ur.kundeId, opgavetypeId: ur.opgavetypeId, knap: 'Gem', note: ur.note ?? '', visNote: true, ekstra: annuller }, (v) => {
+  aabnVaelger({ kundeId: ur.kundeId, opgavetypeId: ur.opgavetypeId, knap: 'Gem', note: ur.note ?? '', visNote: true, ekstra: annuller, personer: deltagereAf(ur) }, (v) => {
     if (!t.state.ur || t.state.ur.start !== ur.start) return;
-    t.state.ur = { ...t.state.ur, kundeId: v.kundeId, opgavetypeId: v.opgavetypeId, note: v.note };
+    t.state.ur = medDeltagere({ ...t.state.ur, kundeId: v.kundeId, opgavetypeId: v.opgavetypeId, note: v.note }, v.personer);
     commit();
   });
 }
@@ -173,12 +176,13 @@ function urkort() {
       h('div', { class: 'tid' }, '0:00:00'),
       h('div', { class: 'bund' },
         h('span'),
-        h('button', { class: 'knap', onclick: () => aabnVaelger({ knap: 'Start', visNote: true }, start) }, ikon('play'), 'Start ny'),
+        h('button', { class: 'knap', onclick: () => aabnVaelger({ knap: 'Start', visNote: true, personer: mineValg() }, start) }, ikon('play'), 'Start ny'),
       ),
     );
   }
   return h('section', { class: 'urkort', 'data-farve': farvePaa(ur.kundeId) },
     h('button', { class: 'hvad', onclick: retUr }, hvadTekst(ur), ikon('ned')),
+    ur.deltagere?.length > 0 && h('p', { class: 'note' }, ur.deltagere.map((p) => personNavn(t.team, p)).join(', ')),
     ur.note && h('p', { class: 'note' }, ur.note),
     h('div', { class: 'tid', id: 'ur-tid' }, urTekst(ur.start)),
     h('div', { class: 'bund' },
@@ -214,7 +218,7 @@ function genvejArk(k) {
       type: 'button',
       class: 'knap fare',
       onclick: () => {
-        t.state.skjult = skjulKombination(t.state.skjult, t.state.registreringer, k, nuIso());
+        t.state.skjult = skjulKombination(t.state.skjult, medPerson(t.state.registreringer, migITeam()), k, nuIso());
         lukArk();
         commit();
       },
@@ -239,7 +243,8 @@ function genvej(k) {
 }
 
 function fortsaetFelter() {
-  const kombinationer = senesteKombinationer(t.state.registreringer, t.state.kunder, t.state.opgavetyper, t.state.ur, 4, t.state.skjult);
+  // I et team bygger genvejene på ens egne registreringer.
+  const kombinationer = senesteKombinationer(medPerson(t.state.registreringer, migITeam()), t.state.kunder, t.state.opgavetyper, t.state.ur, 4, t.state.skjult);
   return [
     h('h2', {}, 'Start igen'),
     kombinationer.length

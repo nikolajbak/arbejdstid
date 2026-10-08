@@ -1,5 +1,6 @@
 // Fanen Indstillinger: kunder, opgavetyper og arkene Brugere, Backup og Konto.
 
+import { teamSektion } from './teamark.js';
 import { FARVER, dayKey, farveFor, formatKr, naesteFarve, normaliserEmail, parseNumber, validateBackup } from './core.js';
 import { newId } from './store.js';
 import { logUd, inviter, fjernAdgang, saetAdmin } from './konto.js';
@@ -271,10 +272,13 @@ export function visIndstillinger() {
       : h('p', { class: 'tom' }, 'Ingen opgavetyper endnu. Opgaven er valgfri, når du registrerer tid.'),
     arkivSektion('opgavetyper'),
 
+    teamSektion(),
+
     h('h2', {}, 'Mere'),
     h('div', { class: 'kort' },
-      t.godk?.admin && merRaekke('Brugere', `${t.brugerliste.length} med adgang`, brugereArk),
-      merRaekke('Backup', 'Eksportér eller indlæs', backupArk),
+      // Brugere og Backup hører til Mig.
+      !t.arbejdssted && t.godk?.admin && merRaekke('Brugere', `${t.brugerliste.length} med adgang`, brugereArk),
+      !t.arbejdssted && merRaekke('Backup', 'Eksportér eller indlæs', backupArk),
       merRaekke('Konto', t.bruger.email, kontoArk),
     ),
   ];

@@ -112,15 +112,16 @@ export const navnPaa = (liste, id) => liste.find((x) => x.id === id)?.navn ?? '(
 
 // --- Filer ------------------------------------------------------------------------
 
-// Del-arket på iPhone, ellers almindelig download.
+// Del-arket på iPhone, ellers almindelig download. Giver false, hvis brugeren
+// lukkede del-arket uden at gemme.
 export async function downloadFile(navn, indhold, type) {
   const fil = new File([indhold], navn, { type });
   if (navigator.canShare?.({ files: [fil] })) {
     try {
       await navigator.share({ files: [fil] });
-      return;
+      return true;
     } catch (e) {
-      if (e.name === 'AbortError') return;
+      if (e.name === 'AbortError') return false;
     }
   }
   const url = URL.createObjectURL(fil);
@@ -129,4 +130,5 @@ export async function downloadFile(navn, indhold, type) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return true;
 }

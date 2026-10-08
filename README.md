@@ -20,6 +20,15 @@ få et overblik og en CSV-fil til fakturering.
 - **Afrunding:** hver registrering tæller mindst 15 minutter og rundes op til
   nærmeste kvarter, både i tid og beløb. Start og slut gemmes præcist, så
   afrundingen gælder også gamle registreringer.
+- **Teams:** tryk på **Mig ▾** øverst for at skifte mellem dine egne data og
+  dine teams, se invitationer eller oprette et team. I et team deler I kunder,
+  opgaver, poster og saldo, og alle ser alles tid. Under **Hvem**, når du
+  starter et ur eller tilføjer tid, vælger du, hvem tiden gælder for; et ur for
+  flere giver én registrering pr. person. Historik kan filtreres på person, og
+  CSV'en får kolonnen Person. Under Indstillinger → Team inviterer du på
+  e-mail (personen skal være godkendt til appen), retter navne, fjerner
+  medlemmer, melder dig ud og flytter dine egne data ind i teamet. Flytningen
+  gemmer først en backup og tømmer derefter Mig.
 - **Historik:** vælg måned med pilene eller tryk på titlen for uge, sidste
   måned eller egen periode. Tryk på en kunde for fordelingen pr. opgave, og på
   en registrering for at rette den. **Saldo** viser, hvad hver kunde skylder
@@ -111,7 +120,8 @@ bliver telefonerne ved med at vise den gamle version fra cachen.
 (Firestore → Regler → indsæt → Udgiv). Version 3 (det nye design) kræver det:
 kunder har nu en farve, og registreringer kan være uden opgave. Version 4
 kræver det også: fjernede genveje gemmes på profilen. Version 6 kræver det
-også: poster (udgifter, brændstof, kontantudlæg og betalinger). Udgives reglerne ikke,
+også: poster (udgifter, brændstof, kontantudlæg og betalinger). Version 7
+kræver det også: teams. Udgives reglerne ikke,
 afvises de nye ændringer.
 
 ## Installér på iPhone

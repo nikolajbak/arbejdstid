@@ -10,6 +10,11 @@ export const t = {
   ventende: false,
   // Brugerlisten, kun for administratorer.
   brugerliste: [],
+  // Arbejdssted: null er Mig, ellers et team-id. team er teamets dokument.
+  arbejdssted: null,
+  team: null,
+  teams: [],
+  invitationer: [],
 };
 
 let tegn = () => {};
@@ -21,6 +26,20 @@ export function setRender(fn) {
 export function render() {
   tegn();
 }
+
+let skift = () => {};
+
+export function setSkift(fn) {
+  skift = fn;
+}
+
+// Skifter til Mig (null) eller et team.
+export function skiftArbejdssted(id) {
+  skift(id);
+}
+
+// Den indloggede brugers uid, når der arbejdes i et team, ellers null.
+export const migITeam = () => (t.arbejdssted ? t.bruger.uid : null);
 
 // Gemmer ændringerne i skyen og tegner skærmen igen.
 export function commit() {
