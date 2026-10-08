@@ -7,8 +7,9 @@ få et overblik og en CSV-fil til fakturering.
 ## Sådan bruges den
 
 - **Tid:** tryk **Start ny**, vælg eller opret kunden (og eventuelt en opgave),
-  og tryk Start. **Fortsæt** viser de seneste kombinationer: ét tryk starter
-  uret, og kører et andet ur, gemmes det først. **Stop** gemmer; uden opgave
+  og tryk Start. **Start igen** viser genveje til de seneste kombinationer: ét
+  tryk starter uret, og kører et andet ur, gemmes det først. Hold fingeren på
+  en genvej for at fjerne den; den kommer igen, næste gang du arbejder på det. **Stop** gemmer; uden opgave
   spørger appen, hvad du lavede. Tryk på kundenavnet på uret for at skifte
   kunde, opgave eller note, og på "Startet" for at rette starttiden. Glemt at
   starte uret? **+ Tilføj tid**.
@@ -98,8 +99,9 @@ bliver telefonerne ved med at vise den gamle version fra cachen.
 
 **Ændres `firestore.rules`, skal reglerne udgives igen** i Firebase-konsollen
 (Firestore → Regler → indsæt → Udgiv). Version 3 (det nye design) kræver det:
-kunder har nu en farve, og registreringer kan være uden opgave. Udgives
-reglerne ikke, afvises de nye ændringer.
+kunder har nu en farve, og registreringer kan være uden opgave. Version 4
+kræver det også: fjernede genveje gemmes på profilen. Udgives reglerne ikke,
+afvises de nye ændringer.
 
 ## Installér på iPhone
 

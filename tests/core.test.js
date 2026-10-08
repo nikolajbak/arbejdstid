@@ -302,6 +302,7 @@ test('naesteFarve vælger den mindst brugte, første ved lighed', () => {
 
 const r = (id, kundeId, opgavetypeId, slut) => ({ id, kundeId, opgavetypeId, start: '2026-10-01T08:00:00.000Z', slut, timepris: 1, note: '' });
 const kunderK = ['a', 'b', 'c', 'd', 'e'].map((id) => ({ id, navn: id, timepris: 1, arkiveret: false }));
+const kort = (l) => l.map(({ kundeId, opgavetypeId }) => ({ kundeId, opgavetypeId }));
 const typerK = [{ id: 't', navn: 't', arkiveret: false }, { id: 'gl', navn: 'gl', arkiveret: true }];
 
 test('senesteKombinationer: unikke, nyeste først, højst 4', () => {
@@ -313,7 +314,7 @@ test('senesteKombinationer: unikke, nyeste først, højst 4', () => {
     r('5', 'd', 't', '2026-10-05T09:00:00.000Z'),
     r('6', 'e', 't', '2026-10-06T09:00:00.000Z'),
   ];
-  assert.deepEqual(senesteKombinationer(regs, kunderK, typerK, null), [
+  assert.deepEqual(kort(senesteKombinationer(regs, kunderK, typerK, null)), [
     { kundeId: 'e', opgavetypeId: 't' },
     { kundeId: 'd', opgavetypeId: 't' },
     { kundeId: 'a', opgavetypeId: 't' },
@@ -332,8 +333,8 @@ test('senesteKombinationer udelader arkiverede kunder/typer og det kørende ur, 
     r('6', 'd', 'slettet', '2026-10-06T09:00:00.000Z'),
   ];
   const ur = { kundeId: 'c', opgavetypeId: 't', start: '2026-10-07T08:00:00.000Z', note: '' };
-  assert.deepEqual(senesteKombinationer(regs, kunder, typerK, ur), [{ kundeId: 'a', opgavetypeId: '' }]);
-  assert.deepEqual(senesteKombinationer(regs, kunder, typerK, ur, 1), [{ kundeId: 'a', opgavetypeId: '' }]);
+  assert.deepEqual(kort(senesteKombinationer(regs, kunder, typerK, ur)), [{ kundeId: 'a', opgavetypeId: '' }]);
+  assert.deepEqual(kort(senesteKombinationer(regs, kunder, typerK, ur, 1)), [{ kundeId: 'a', opgavetypeId: '' }]);
 });
 
 test('skiftUr gemmer det kørende ur og starter det nye', () => {
@@ -380,4 +381,55 @@ test('skiftUr gemmer ikke en registrering, der slutter før den starter (urforsk
   const ny = skiftUr(tilstand, { kundeId: 'b', opgavetypeId: '' }, '2026-10-08T09:30:00.000Z', 800, 'r9');
   assert.deepEqual(ny.registreringer, []);
   assert.equal(ny.ur.kundeId, 'b');
+});
+
+import { skjulKombination, sidenTekst } from '../core.js';
+
+test('senesteKombinationer giver tidspunktet for seneste registrering med', () => {
+  const regs = [r('1', 'a', 't', '2026-10-01T09:00:00.000Z'), r('2', 'a', 't', '2026-10-03T09:00:00.000Z')];
+  assert.deepEqual(senesteKombinationer(regs, kunderK, typerK, null), [{ kundeId: 'a', opgavetypeId: 't', sidst: '2026-10-03T09:00:00.000Z' }]);
+});
+
+test('en skjult kombination vises ikke, før der er arbejdet på den igen', () => {
+  const regs = [r('1', 'a', 't', '2026-10-01T09:00:00.000Z'), r('2', 'b', '', '2026-10-02T09:00:00.000Z')];
+  const skjult = skjulKombination({}, regs, { kundeId: 'a', opgavetypeId: 't' }, '2026-10-05T08:00:00.000Z');
+  assert.deepEqual(kort(senesteKombinationer(regs, kunderK, typerK, null, 4, skjult)), [{ kundeId: 'b', opgavetypeId: '' }]);
+  const igen = [...regs, r('3', 'a', 't', '2026-10-06T09:00:00.000Z')];
+  assert.deepEqual(kort(senesteKombinationer(igen, kunderK, typerK, null, 4, skjult)), [
+    { kundeId: 'a', opgavetypeId: 't' }, { kundeId: 'b', opgavetypeId: '' },
+  ]);
+});
+
+test('skjulKombination rydder skjulte kombinationer, der er i brug igen', () => {
+  const regs = [r('1', 'a', 't', '2026-10-06T09:00:00.000Z')];
+  const gammel = skjulKombination({}, [], { kundeId: 'a', opgavetypeId: 't' }, '2026-10-05T08:00:00.000Z');
+  const ny = skjulKombination(gammel, regs, { kundeId: 'b', opgavetypeId: '' }, '2026-10-07T08:00:00.000Z');
+  assert.deepEqual(Object.values(ny), ['2026-10-07T08:00:00.000Z']);
+  assert.equal(Object.keys(gammel).length, 1, 'den gamle ændres ikke');
+});
+
+test('sidenTekst siger i dag, i går, dage siden eller datoen', () => {
+  const nu = new Date(2026, 9, 8, 12, 0);
+  assert.equal(sidenTekst(new Date(2026, 9, 8, 7, 0).toISOString(), nu), 'i dag');
+  assert.equal(sidenTekst(new Date(2026, 9, 7, 23, 0).toISOString(), nu), 'i går');
+  assert.equal(sidenTekst(new Date(2026, 9, 4, 9, 0).toISOString(), nu), 'for 4 dage siden');
+  assert.equal(sidenTekst(new Date(2026, 8, 20, 9, 0).toISOString(), nu), '20. sep.');
+});
+
+test('forskel melder ændrede skjulte kombinationer som én op', () => {
+  const skjult = { 'a\u0000t': '2026-10-05T08:00:00.000Z' };
+  assert.deepEqual(forskel(tom(), { ...tom(), skjult }), [{ type: 'skjult', skjult }]);
+  assert.deepEqual(forskel({ ...tom(), skjult: {} }, tom()), []);
+});
+
+test('validateBackup beholder gyldige skjulte kombinationer og dropper ugyldige', () => {
+  const b = (skjult) => ({ version: 1, kunder: [], opgavetyper: [], registreringer: [], skjult });
+  assert.deepEqual(validateBackup(b({ x: '2026-10-05T08:00:00.000Z' })).data.skjult, { x: '2026-10-05T08:00:00.000Z' });
+  assert.deepEqual(validateBackup(b({ x: 5 })).data.skjult, {});
+  assert.deepEqual(validateBackup(b(undefined)).data.skjult, {});
+});
+
+test('flet beholder kontoens skjulte kombinationer', () => {
+  const skjult = { x: '2026-10-05T08:00:00.000Z' };
+  assert.deepEqual(flet(tom(), { ...tom(), skjult }).skjult, skjult);
 });

@@ -74,8 +74,9 @@ service cloud.firestore {
 
       allow read: if eget();
       allow create, update: if eget()
-        && felter(['email', 'oprettet', 'ur'], ['email', 'oprettet', 'ur'])
+        && felter(['email', 'oprettet', 'ur'], ['email', 'oprettet', 'ur', 'skjult'])
         && request.resource.data.email is string
+        && (!('skjult' in request.resource.data) || request.resource.data.skjult is map)
         && request.resource.data.oprettet is timestamp
         && gyldigtUr(request.resource.data.ur);
 

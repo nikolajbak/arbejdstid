@@ -106,20 +106,51 @@ export function naesteFarve(kunder) {
 // --- Fortsæt og skift ------------------------------------------------------------
 
 // De seneste kombinationer af kunde og opgave, der kan fortsættes med ét tryk.
-export function senesteKombinationer(registreringer, kunder, opgavetyper, ur, antal = 4) {
+export const kombiNoegle = (x) => `${x.kundeId}\u0000${x.opgavetypeId ?? ''}`;
+
+// De seneste unikke kombinationer af kunde og opgave, nyeste først. En skjult
+// kombination vises igen, når der er arbejdet på den efter den blev skjult.
+export function senesteKombinationer(registreringer, kunder, opgavetyper, ur, antal = 4, skjult = {}) {
   const aktivKunde = new Set(kunder.filter((k) => !k.arkiveret).map((k) => k.id));
   const aktivType = new Set(opgavetyper.filter((t) => !t.arkiveret).map((t) => t.id));
-  const noegle = (x) => `${x.kundeId}\u0000${x.opgavetypeId ?? ''}`;
-  const set = new Set(ur ? [noegle(ur)] : []);
+  const set = new Set(ur ? [kombiNoegle(ur)] : []);
   const ud = [];
   for (const r of [...registreringer].sort((a, b) => new Date(b.slut) - new Date(a.slut))) {
     if (ud.length >= antal) break;
+    const noegle = kombiNoegle(r);
     const opgavetypeId = r.opgavetypeId ?? '';
-    if (set.has(noegle(r)) || !aktivKunde.has(r.kundeId) || (opgavetypeId && !aktivType.has(opgavetypeId))) continue;
-    set.add(noegle(r));
-    ud.push({ kundeId: r.kundeId, opgavetypeId });
+    if (set.has(noegle) || !aktivKunde.has(r.kundeId) || (opgavetypeId && !aktivType.has(opgavetypeId))) continue;
+    set.add(noegle);
+    if (skjult[noegle] && new Date(r.slut) <= new Date(skjult[noegle])) continue;
+    ud.push({ kundeId: r.kundeId, opgavetypeId, sidst: r.slut });
   }
   return ud;
+}
+
+// Skjuler en kombination fra nu af. Skjulte kombinationer, der er arbejdet på
+// siden, fjernes samtidig, så listen ikke vokser.
+export function skjulKombination(skjult, registreringer, kombination, nu) {
+  const seneste = new Map();
+  for (const r of registreringer) {
+    const n = kombiNoegle(r);
+    if (!seneste.has(n) || new Date(r.slut) > new Date(seneste.get(n))) seneste.set(n, r.slut);
+  }
+  const ud = {};
+  for (const [n, tid] of Object.entries(skjult ?? {})) {
+    if (!seneste.has(n) || new Date(seneste.get(n)) <= new Date(tid)) ud[n] = tid;
+  }
+  ud[kombiNoegle(kombination)] = nu;
+  return ud;
+}
+
+// "i dag", "i går", "for 3 dage siden" eller datoen.
+export function sidenTekst(iso, nu = new Date()) {
+  const d = new Date(iso);
+  const dage = Math.round((new Date(nu.getFullYear(), nu.getMonth(), nu.getDate()) - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000);
+  if (dage <= 0) return 'i dag';
+  if (dage === 1) return 'i går';
+  if (dage < 7) return `for ${dage} dage siden`;
+  return d.toLocaleDateString('da-DK', { day: 'numeric', month: 'short' });
 }
 
 // Gemmer det kørende ur som registrering (slut = nu) og starter et nyt.
@@ -208,7 +239,9 @@ export function validateBackup(obj) {
     || !obj.registreringer.every(gyldigReg) || !gyldigtUr(obj.ur)) return fejl;
   // En ukendt farve fjernes; databasen tager kun imod de otte nøgler.
   const kunder = obj.kunder.map(({ farve, ...k }) => (FARVER.includes(farve) ? { ...k, farve } : k));
-  return { ok: true, data: { ...obj, kunder, ur: obj.ur ?? null } };
+  const skjult = obj.skjult && typeof obj.skjult === 'object' && !Array.isArray(obj.skjult)
+    && Object.values(obj.skjult).every((v) => typeof v === 'string') ? obj.skjult : {};
+  return { ok: true, data: { ...obj, kunder, ur: obj.ur ?? null, skjult } };
 }
 
 // --- Synkronisering med skyen ------------------------------------------------
@@ -244,6 +277,7 @@ export function forskel(foer, efter) {
     for (const id of gamle.keys()) if (!nye.has(id)) ops.push({ type: 'slet', samling, id });
   }
   if (fast(foer.ur) !== fast(efter.ur)) ops.push({ type: 'ur', ur: efter.ur ?? null });
+  if (fast(foer.skjult ?? {}) !== fast(efter.skjult ?? {})) ops.push({ type: 'skjult', skjult: efter.skjult ?? {} });
   return ops;
 }
 
@@ -273,6 +307,7 @@ export function flet(lokal, konto) {
     opgavetyper,
     registreringer: [...konto.registreringer, ...lokal.registreringer.filter((r) => !kendte.has(r.id)).map(omskriv)],
     ur: konto.ur ?? (lokal.ur ? omskriv(lokal.ur) : null),
+    skjult: konto.skjult ?? {},
   };
 }
 

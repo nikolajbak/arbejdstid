@@ -1,6 +1,6 @@
-// Fanen Tid: urkortet, Fortsæt og dagens registreringer.
+// Fanen Tid: urkortet, Start igen og dagens registreringer.
 
-import { amountOf, dayKey, durationMs, farveFor, formatDuration, formatKr, senesteKombinationer, skiftUr } from './core.js';
+import { amountOf, dayKey, durationMs, farveFor, formatDuration, formatKr, senesteKombinationer, sidenTekst, skiftUr, skjulKombination } from './core.js';
 import { newId } from './store.js';
 import { t, commit, aktive, kundePaa } from './tilstand.js';
 import { h, aabnArk, lukArk, arkTop, besked, chip, felt, ikon, klokken, lokalTid, navnPaa, p2 } from './ui.js';
@@ -187,21 +187,66 @@ function urkort() {
   );
 }
 
-function fortsaetFelter() {
-  const kombinationer = senesteKombinationer(t.state.registreringer, t.state.kunder, t.state.opgavetyper, t.state.ur);
-  return [
-    h('h2', {}, 'Fortsæt'),
-    kombinationer.length
-      ? h('div', { class: 'felt-gitter' }, kombinationer.map((k) => h('button', {
-        class: 'fortsaet blod',
-        'data-farve': farvePaa(k.kundeId),
-        onclick: () => fortsaet(k),
+// Kalder handling efter et langt tryk. Returnerer en funktion, der fortæller,
+// om det seneste tryk var langt, så det almindelige klik kan springes over.
+function langtTryk(el, handling) {
+  let timer;
+  let langt = false;
+  el.addEventListener('pointerdown', () => {
+    langt = false;
+    timer = setTimeout(() => { langt = true; navigator.vibrate?.(10); handling(); }, 500);
+  });
+  for (const e of ['pointerup', 'pointerleave', 'pointercancel']) el.addEventListener(e, () => clearTimeout(timer));
+  el.addEventListener('contextmenu', (e) => e.preventDefault());
+  return () => langt;
+}
+
+function genvejArk(k) {
+  aabnArk(
+    arkTop('Genvej'),
+    h('div', { class: 'stop-top blod', 'data-farve': farvePaa(k.kundeId) },
+      h('span', { class: 'kunde' }, navnPaa(t.state.kunder, k.kundeId)),
+      h('span', {}, k.opgavetypeId ? navnPaa(t.state.opgavetyper, k.opgavetypeId) : 'Uden opgave'),
+    ),
+    h('p', { class: 'hjaelp' }, 'Registreringerne bliver liggende. Genvejen kommer igen, næste gang du arbejder på det.'),
+    h('button', {
+      type: 'button',
+      class: 'knap fare',
+      onclick: () => {
+        t.state.skjult = skjulKombination(t.state.skjult, t.state.registreringer, k, nuIso());
+        lukArk();
+        commit();
       },
-        h('span', { class: 'kunde' }, navnPaa(t.state.kunder, k.kundeId)),
-        h('span', { class: 'opgave' }, k.opgavetypeId && navnPaa(t.state.opgavetyper, k.opgavetypeId)),
-        ikon('play'),
-      )))
-      : h('p', { class: 'hjaelp' }, 'Når du har stoppet et ur, ligger det her, så du kan fortsætte med ét tryk.'),
+    }, 'Fjern fra Start igen'),
+  );
+}
+
+function genvej(k) {
+  let varLangt;
+  const knap = h('button', {
+    class: 'fortsaet blod',
+    'data-farve': farvePaa(k.kundeId),
+    onclick: () => { if (!varLangt()) fortsaet(k); },
+  },
+    h('span', { class: 'kunde' }, navnPaa(t.state.kunder, k.kundeId)),
+    h('span', { class: 'opgave' }, k.opgavetypeId ? navnPaa(t.state.opgavetyper, k.opgavetypeId) : 'Uden opgave'),
+    h('span', { class: 'siden' }, sidenTekst(k.sidst)),
+    ikon('play'),
+  );
+  varLangt = langtTryk(knap, () => genvejArk(k));
+  return knap;
+}
+
+function fortsaetFelter() {
+  const kombinationer = senesteKombinationer(t.state.registreringer, t.state.kunder, t.state.opgavetyper, t.state.ur, 4, t.state.skjult);
+  return [
+    h('h2', {}, 'Start igen'),
+    kombinationer.length
+      ? [
+        h('div', { class: 'felt-gitter' }, kombinationer.map(genvej)),
+        h('p', { class: 'hjaelp genvej-hjaelp' }, 'Hold fingeren på en genvej for at fjerne den.'),
+      ]
+      : h('p', { class: 'hjaelp' }, 'Når du har stoppet et ur, ligger det her, så du kan starte det igen med ét tryk.'),
   ];
 }
 

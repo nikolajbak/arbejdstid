@@ -13,6 +13,7 @@ export function defaultData() {
     opgavetyper: [],
     registreringer: [],
     ur: null,
+    skjult: {},
   };
 }
 

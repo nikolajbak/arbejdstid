@@ -12,7 +12,7 @@ const efterNavn = (a, b) => a.navn.localeCompare(b.navn, 'da');
 export function startSky(uid, { data, status, fejl }) {
   const profil = doc(db, 'brugere', uid);
   // Seneste kendte udgave af hver del. undefined = ikke modtaget endnu.
-  const del = { ur: undefined, kunder: undefined, opgavetyper: undefined, registreringer: undefined };
+  const del = { ur: undefined, skjult: undefined, kunder: undefined, opgavetyper: undefined, registreringer: undefined };
   const ventende = {};
   let sidst = null;
   let varVentende = false;
@@ -24,6 +24,7 @@ export function startSky(uid, { data, status, fejl }) {
       opgavetyper: [...del.opgavetyper].sort(efterNavn),
       registreringer: del.registreringer,
       ur: del.ur,
+      skjult: del.skjult,
     };
     // Kun når data reelt er ændret, så et felt man skriver i, ikke tegnes om.
     if (sidst && forskel(sidst, ny).length === 0) return;
@@ -44,6 +45,7 @@ export function startSky(uid, { data, status, fejl }) {
   const lyttere = [
     onSnapshot(profil, medMetadata, (s) => {
       del.ur = s.data()?.ur ?? null;
+      del.skjult = s.data()?.skjult ?? {};
       meld('profil', s.metadata);
       opdater();
     }, (e) => fejl(e, 'lyt')),
@@ -62,11 +64,13 @@ export function startSky(uid, { data, status, fejl }) {
     // ankommer hver for sig.
     for (const navn of SAMLINGER) del[navn] = kopi(tilstand[navn]);
     del.ur = kopi(tilstand.ur ?? null);
+    del.skjult = kopi(tilstand.skjult ?? {});
     for (let i = 0; i < ops.length; i += 500) {
       const batch = writeBatch(db);
       for (const op of ops.slice(i, i + 500)) {
         if (op.type === 'set') batch.set(doc(profil, op.samling, op.id), op.data);
         else if (op.type === 'slet') batch.delete(doc(profil, op.samling, op.id));
+        else if (op.type === 'skjult') batch.update(profil, { skjult: op.skjult });
         else batch.update(profil, { ur: op.ur });
       }
       // Afventes ikke: uden net bliver løftet først indfriet, når der er forbindelse.

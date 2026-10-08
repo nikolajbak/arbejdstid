@@ -135,3 +135,10 @@ test('registrering og ur uden opgave accepteres', async () => {
   await assertSucceeds(setDoc(doc(ven(), 'brugere/ven/registreringer/r1'), { ...reg, opgavetypeId: '' }));
   await assertSucceeds(setDoc(doc(ven(), 'brugere/ven'), { email: 'ven@x.dk', oprettet: serverTimestamp(), ur: { kundeId: 'k1', opgavetypeId: '', start: '2026-10-07T08:00:00.000Z', note: '' } }));
 });
+
+test('profil med skjulte genveje som map accepteres, andre typer afvises', async () => {
+  await assertSucceeds(setDoc(doc(ven(), 'brugere/ven'), { email: 'ven@x.dk', oprettet: serverTimestamp(), ur: null }));
+  await assertSucceeds(updateDoc(doc(ven(), 'brugere/ven'), { skjult: { 'k1\u0000t1': '2026-10-08T08:00:00.000Z' } }));
+  await assertFails(updateDoc(doc(ven(), 'brugere/ven'), { skjult: 'k1' }));
+  await assertFails(updateDoc(doc(ven(), 'brugere/ven'), { andet: 1 }));
+});
