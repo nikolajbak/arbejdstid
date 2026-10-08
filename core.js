@@ -1,9 +1,13 @@
 // Ren logik uden DOM. Bruges af både app.js og tests.
 
 const TIME_MS = 3600000;
+const KVARTER_MS = 15 * 60000;
 
+// Tiden der faktureres: rundet op til nærmeste kvarter, mindst ét kvarter.
+// Start og slut gemmes uændret.
 export function durationMs(entry) {
-  return new Date(entry.slut) - new Date(entry.start);
+  const ms = new Date(entry.slut) - new Date(entry.start);
+  return Math.max(1, Math.ceil(ms / KVARTER_MS)) * KVARTER_MS;
 }
 
 export function amountOf(entry) {

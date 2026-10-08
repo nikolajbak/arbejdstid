@@ -8,6 +8,19 @@ test('durationMs er slut minus start', () => {
   assert.equal(durationMs({ start: '2026-10-07T09:00:00', slut: '2026-10-07T11:15:00' }), 8100000);
 });
 
+test('durationMs runder op til nærmeste kvarter', () => {
+  assert.equal(durationMs({ start: '2026-10-07T09:00:00', slut: '2026-10-07T09:16:00' }), 30 * 60000);
+  assert.equal(durationMs({ start: '2026-10-07T09:00:00', slut: '2026-10-07T10:00:01' }), 75 * 60000);
+});
+
+test('durationMs giver mindst 15 minutter', () => {
+  assert.equal(durationMs({ start: '2026-10-07T09:00:00', slut: '2026-10-07T09:00:30' }), 15 * 60000);
+});
+
+test('amountOf regner med den afrundede tid', () => {
+  assert.equal(amountOf({ start: '2026-10-07T09:00:00', slut: '2026-10-07T09:05:00', timepris: 800 }), 200);
+});
+
 test('amountOf bruger registreringens egen timepris', () => {
   assert.equal(amountOf({ start: '2026-10-07T09:00:00', slut: '2026-10-07T10:30:00', timepris: 800 }), 1200);
 });

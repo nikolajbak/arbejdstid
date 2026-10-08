@@ -13,6 +13,9 @@ få et overblik og en CSV-fil til fakturering.
   spørger appen, hvad du lavede. Tryk på kundenavnet på uret for at skifte
   kunde, opgave eller note, og på "Startet" for at rette starttiden. Glemt at
   starte uret? **+ Tilføj tid**.
+- **Afrunding:** hver registrering tæller mindst 15 minutter og rundes op til
+  nærmeste kvarter, både i tid og beløb. Start og slut gemmes præcist, så
+  afrundingen gælder også gamle registreringer.
 - **Historik:** vælg måned med pilene eller tryk på titlen for uge, sidste
   måned eller egen periode. Tryk på en kunde for fordelingen pr. opgave, og på
   en registrering for at rette den. **Eksportér CSV** til fakturering.
