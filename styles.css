@@ -54,6 +54,7 @@
 /* --- Grundlag ------------------------------------------------------------- */
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 html {
   touch-action: manipulation;
@@ -126,6 +127,7 @@ p { margin: 8px 4px; }
   position: relative;
 }
 .kort > .raekke + .raekke,
+.valgliste > * + *,
 .kort > details + details > summary,
 .kort > .raekke + details > summary { border-top: 1px solid var(--linje); }
 button.raekke:active, summary.raekke:active { background: var(--daempet); }
@@ -201,7 +203,7 @@ button.raekke:active, summary.raekke:active { background: var(--daempet); }
 
 .felt { display: grid; gap: 6px; }
 .felt > span:first-child { font-size: 14px; color: var(--sek); padding-left: 4px; }
-input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), textarea {
+:where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), textarea) {
   width: 100%;
   min-height: 48px;
   padding: 12px 14px;
@@ -214,7 +216,7 @@ input:focus, textarea:focus { border-color: var(--k); box-shadow: 0 0 0 3px colo
 textarea { min-height: 80px; resize: vertical; }
 
 /* Dato og klokkeslæt som små grå knapper med iOS' egne hjul. */
-.tidsfelter { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.tidsfelter { gap: 6px; min-height: 60px; }
 .tidsfelter input[type="date"], .tidsfelter input[type="time"] {
   width: auto;
   min-height: 44px;
@@ -386,6 +388,8 @@ dialog.ark::backdrop { background: rgb(0 0 0 / 0.35); animation: frem 200ms ease
 .valgliste .raekke .ikon-check { color: var(--k); width: 20px; height: 20px; }
 .valgliste .opret { color: var(--k); font-weight: 600; }
 .ny-kunde { padding: 0 16px 14px 40px; }
+.valgliste .raekke.opret .ikon { color: var(--k); }
+.valgliste { max-height: 40dvh; overflow: auto; }
 .ny-type { display: flex; gap: 8px; }
 .ny-type input { flex: 1; }
 .ny-type .knap { width: auto; }
