@@ -28,7 +28,9 @@ få et overblik og en CSV-fil til fakturering.
   CSV'en får kolonnen Person. Under Indstillinger → Team inviterer du på
   e-mail (personen skal være godkendt til appen), retter navne, fjerner
   medlemmer, melder dig ud og flytter dine egne data ind i teamet. Flytningen
-  gemmer først en backup og tømmer derefter Mig.
+  gemmer først en backup og tømmer derefter Mig. **Tilføj fra Mig** tager kun
+  de kunder og opgaver, du vælger: kunderne flyttes med deres tid og poster,
+  opgaverne kopieres, så Mig beholder dem.
 - **Historik:** vælg måned med pilene eller tryk på titlen for uge, sidste
   måned eller egen periode. Tryk på en kunde for fordelingen pr. opgave, og på
   en registrering for at rette den. **Saldo** viser, hvad hver kunde skylder

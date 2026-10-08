@@ -1,14 +1,14 @@
 // Arbejdssted og teams: vælg Mig eller et team, invitationer, sektionen Team i
 // Indstillinger og flytning af egne data ind i et team.
 
-import { dayKey, fejlTekst, invitationsMail, normaliserEmail, personNavn } from './core.js';
+import { dayKey, farveFor, fejlTekst, invitationsMail, normaliserEmail, personNavn } from './core.js';
 import { appAdresse } from './konto.js';
 import { migSted, teamSted } from './sky.js';
 import {
-  opretTeam, blivMedlem, inviter, traekTilbage, fjernMedlem, omdoeb, saetMitNavn, hentData, flytData,
+  opretTeam, blivMedlem, inviter, traekTilbage, fjernMedlem, omdoeb, saetMitNavn, hentData, flytData, flytUdvalgt,
 } from './team.js';
 import { t, skiftArbejdssted } from './tilstand.js';
-import { h, aabnArk, lukArk, arkTop, besked, downloadFile, felt, ikon } from './ui.js';
+import { h, aabnArk, lukArk, arkTop, besked, chip, downloadFile, felt, ikon } from './ui.js';
 
 const raekke = (titel, under, onclick, valgt = false) => h('button', { type: 'button', class: 'raekke', onclick },
   h('span', { class: 'hoved' }, h('span', { class: 'titel' }, titel), under && h('span', { class: 'under' }, under)),
@@ -142,6 +142,74 @@ export async function flytHertil(teamId) {
   besked(`Flyttet ${antal} ${antal === 1 ? 'registrering' : 'registreringer'}`);
 }
 
+// --- Tilføj enkelte kunder og opgaver fra Mig --------------------------------------
+
+const efterNavn = (a, b) => a.navn.localeCompare(b.navn, 'da');
+
+// Kunder flyttes med deres registreringer og poster; opgaver kopieres.
+export async function tilfoejFraMig(teamId) {
+  const uid = t.bruger.uid;
+  const navn = t.teams.find((x) => x.id === teamId)?.navn ?? 'teamet';
+  if (!navigator.onLine) return besked('Det kræver internet');
+  let mig;
+  try {
+    mig = await hentData(migSted(uid).data, migSted(uid).person);
+  } catch {
+    return besked('Det kræver internet');
+  }
+  if (!mig.kunder.length && !mig.opgavetyper.length) return besked('Der er ingen kunder eller opgaver i Mig');
+
+  const valgt = { kunder: new Set(), opgavetyper: new Set() };
+  const fejl = h('p', { class: 'fejl' });
+  const lister = { kunder: h('div', { class: 'chips' }), opgavetyper: h('div', { class: 'chips' }) };
+  const tegn = (samling) => lister[samling].replaceChildren(...[...mig[samling]].sort(efterNavn).map((x) => chip(x.navn, {
+    valgt: valgt[samling].has(x.id),
+    farve: samling === 'kunder' ? farveFor(x) : undefined,
+    onclick: () => {
+      if (valgt[samling].has(x.id)) valgt[samling].delete(x.id);
+      else valgt[samling].add(x.id);
+      fejl.textContent = '';
+      tegn(samling);
+    },
+  })));
+  tegn('kunder');
+  tegn('opgavetyper');
+
+  const tilfoej = async () => {
+    if (!valgt.kunder.size && !valgt.opgavetyper.size) return (fejl.textContent = 'Vælg mindst én kunde eller opgave');
+    if (mig.ur && valgt.kunder.has(mig.ur.kundeId)) return (fejl.textContent = 'Stop uret i Mig, før du flytter den kunde.');
+    if (valgt.kunder.size) {
+      const regs = mig.registreringer.filter((r) => valgt.kunder.has(r.kundeId)).length;
+      const tekst = `${valgt.kunder.size} ${valgt.kunder.size === 1 ? 'kunde' : 'kunder'} og ${regs} ${regs === 1 ? 'registrering' : 'registreringer'} flyttes fra Mig til ${navn}.`;
+      if (!confirm(tekst)) return;
+    }
+    lukArk();
+    besked('Tilføjer …');
+    try {
+      await flytUdvalgt({ data: mig, sted: migSted(uid) }, teamSted(teamId, uid), uid,
+        { kunder: [...valgt.kunder], opgavetyper: [...valgt.opgavetyper] });
+    } catch (err) {
+      console.error(err);
+      return besked(err.code === 'unavailable' ? 'Det kræver internet' : fejlTekst(err.code));
+    }
+    besked(`Tilføjet til ${navn}`);
+  };
+
+  aabnArk(
+    arkTop('Tilføj fra Mig', h('button', { type: 'button', class: 'tekstknap staerk', onclick: tilfoej }, 'Tilføj')),
+    mig.kunder.length > 0 && [
+      h('div', { class: 'ark-overskrift' }, h('h3', {}, 'Kunder'), h('span', { class: 'valgfri' }, 'flyttes med tid og poster')),
+      lister.kunder,
+    ],
+    mig.opgavetyper.length > 0 && [
+      h('div', { class: 'ark-overskrift' }, h('h3', {}, 'Opgaver'), h('span', { class: 'valgfri' }, 'kopieres')),
+      lister.opgavetyper,
+    ],
+    h('p', { class: 'hjaelp' }, 'Findes et navn allerede i teamet, bruges teamets. Opgaver, som den flyttede tid bruger, kommer med.'),
+    fejl,
+  );
+}
+
 // --- Sektionen Team i Indstillinger ------------------------------------------------
 
 function tekstArk(titel, etiket, vaerdi, gem) {
@@ -233,6 +301,7 @@ export function teamSektion() {
     fejl,
     h('p', { class: 'hjaelp' }, 'Din mailapp åbner med en færdig invitation, som du selv sender. Personen skal være godkendt til appen af en administrator. Invitationen står under Mig ▾.'),
     h('div', { class: 'kort' },
+      raekke('Tilføj fra Mig', 'Enkelte kunder og opgaver', () => tilfoejFraMig(team.id)),
       raekke('Flyt mine data hertil', 'Kunder, opgaver, registreringer og poster fra Mig', () => flytHertil(team.id)),
     ),
     h('div', { class: 'knapper' }, h('button', { type: 'button', class: 'knap fare', onclick: () => meldUd(team) }, 'Meld dig ud')),

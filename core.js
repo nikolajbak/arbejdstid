@@ -380,6 +380,34 @@ export function flytTilTeam(mig, team, uid) {
   };
 }
 
+// Flytter udvalgte kunder fra Mig til et team med deres registreringer og poster,
+// og kopierer udvalgte opgavetyper. Opgavetyper, som den flyttede tid bruger,
+// kopieres med. Mig beholder alle opgavetyper. Kan køres igen uden dubletter.
+export function flytUdvalgtTilTeam(mig, team, uid, valg) {
+  const kunder = new Set(valg.kunder);
+  const registreringer = mig.registreringer.filter((r) => kunder.has(r.kundeId));
+  const poster = (mig.poster ?? []).filter((p) => kunder.has(p.kundeId));
+  const typer = new Set([...valg.opgavetyper, ...registreringer.map((r) => r.opgavetypeId)]);
+  const del = {
+    kunder: mig.kunder.filter((x) => kunder.has(x.id)),
+    opgavetyper: mig.opgavetyper.filter((x) => typer.has(x.id)),
+    registreringer,
+    poster,
+    ur: null,
+  };
+  const { tilstand, antal } = flytTilTeam(del, team, uid);
+  return {
+    team: tilstand,
+    mig: kunder.size ? {
+      ...mig,
+      kunder: mig.kunder.filter((x) => !kunder.has(x.id)),
+      registreringer: mig.registreringer.filter((r) => !kunder.has(r.kundeId)),
+      poster: (mig.poster ?? []).filter((p) => !kunder.has(p.kundeId)),
+    } : mig,
+    antal,
+  };
+}
+
 // Fletter data fra telefonen ind i kontoen. Navne, der findes i forvejen, genbruges.
 export function flet(lokal, konto) {
   const noegle = (navn) => navn.trim().toLocaleLowerCase('da');

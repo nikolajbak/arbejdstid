@@ -5,7 +5,7 @@ import {
   writeBatch, arrayUnion, arrayRemove, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js';
 import { db } from './firebase.js';
-import { flytTilTeam, forskel, normaliserEmail } from './core.js';
+import { flytTilTeam, flytUdvalgtTilTeam, forskel, normaliserEmail } from './core.js';
 
 const SAMLINGER = ['kunder', 'opgavetyper', 'registreringer', 'poster'];
 const team = (id) => doc(db, 'teams', id);
@@ -83,4 +83,14 @@ export async function flytData(mig, teamSted, uid) {
   const tom = { ...mig.data, kunder: [], opgavetyper: [], registreringer: [], poster: [] };
   await skriv(mig.sted.data, forskel(mig.data, tom).filter((op) => op.samling));
   return antal;
+}
+
+// Flytter udvalgte kunder og kopierer udvalgte opgavetyper fra Mig ind i teamet.
+// Samme rækkefølge som flytData: teamet først, så fjernes kunderne fra Mig.
+export async function flytUdvalgt(mig, teamSted, uid, valg) {
+  const teamData = await hentData(teamSted.data, teamSted.person);
+  const r = flytUdvalgtTilTeam(mig.data, teamData, uid, valg);
+  await skriv(teamSted.data, forskel(teamData, r.team).filter((op) => op.samling));
+  await skriv(mig.sted.data, forskel(mig.data, r.mig).filter((op) => op.samling));
+  return r.antal;
 }

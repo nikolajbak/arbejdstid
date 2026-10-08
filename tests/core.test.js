@@ -531,7 +531,7 @@ test('parseNumber forstår tusindtalspunktum, når der også er decimalkomma', a
 
 // --- Teams -----------------------------------------------------------------------
 
-import { registreringerFraUr, forPersoner, medPerson, personNavn, flytTilTeam } from '../core.js';
+import { registreringerFraUr, forPersoner, medPerson, personNavn, flytTilTeam, flytUdvalgtTilTeam } from '../core.js';
 
 const tael = () => { let n = 0; return () => `id${++n}`; };
 const urT = { kundeId: 'a', opgavetypeId: 't', start: '2026-10-08T08:00:00.000Z', note: 'n' };
@@ -610,6 +610,39 @@ test('flytTilTeam fletter efter navn, sætter person og giver ingen dubletter ve
   assert.equal(igen.tilstand.registreringer.length, 2);
   assert.equal(igen.tilstand.kunder.length, 2);
   assert.equal(igen.tilstand.poster.length, 1);
+});
+
+test('flytUdvalgtTilTeam flytter kunden med historik og kopierer opgaver', () => {
+  const reg = (id, kundeId, opgavetypeId) => ({ id, kundeId, opgavetypeId, start: 's', slut: 'u', timepris: 1, note: '' });
+  const typer = [{ id: 't1', navn: 'Møde', arkiveret: false }, { id: 't2', navn: 'Kørsel', arkiveret: false }, { id: 't3', navn: 'Andet', arkiveret: false }];
+  const mig = { ...tom(), kunder: [k('l1', 'acme'), k('l2', 'Bliver')], opgavetyper: typer,
+    registreringer: [reg('r1', 'l1', 't1'), reg('r2', 'l2', 't2')], poster: [post('udgift', 10, 'l1'), post('udgift', 20, 'l2')], ur: null, skjult: {} };
+  const team = { ...tom(), kunder: [k('k1', 'ACME')], opgavetyper: [], registreringer: [], poster: [], ur: null, skjult: {} };
+  const r = flytUdvalgtTilTeam(mig, team, 'u1', { kunder: ['l1'], opgavetyper: ['t3'] });
+  assert.equal(r.antal, 1);
+  assert.deepEqual(r.team.kunder.map((x) => x.id), ['k1']);
+  // Opgaven, som den flyttede tid bruger, følger med, og den valgte kopieres.
+  assert.deepEqual(r.team.opgavetyper.map((x) => x.navn), ['Møde', 'Andet']);
+  assert.deepEqual(r.team.registreringer.map((x) => [x.id, x.kundeId, x.person]), [['r1', 'k1', 'u1']]);
+  assert.deepEqual(r.team.poster.map((x) => [x.beloeb, x.kundeId]), [[10, 'k1']]);
+  assert.deepEqual(r.mig.kunder.map((x) => x.id), ['l2']);
+  assert.deepEqual(r.mig.registreringer.map((x) => x.id), ['r2']);
+  assert.deepEqual(r.mig.poster.map((x) => x.beloeb), [20]);
+  assert.equal(r.mig.opgavetyper.length, 3);
+  // Afbrudt efter teamet blev skrevet: en ny kørsel giver ingen dubletter.
+  const igen = flytUdvalgtTilTeam(mig, r.team, 'u1', { kunder: ['l1'], opgavetyper: ['t3'] });
+  assert.equal(igen.antal, 0);
+  assert.equal(igen.team.registreringer.length, 1);
+  assert.equal(igen.team.opgavetyper.length, 2);
+});
+
+test('flytUdvalgtTilTeam med kun opgaver lader Mig være uændret', () => {
+  const mig = { ...tom(), kunder: [k('l1', 'A')], opgavetyper: [{ id: 't1', navn: 'Møde', arkiveret: false }], registreringer: [], poster: [], ur: null, skjult: {} };
+  const team = { ...tom(), kunder: [], opgavetyper: [], registreringer: [], poster: [], ur: null, skjult: {} };
+  const r = flytUdvalgtTilTeam(mig, team, 'u1', { kunder: [], opgavetyper: ['t1'] });
+  assert.deepEqual(r.team.opgavetyper.map((x) => x.navn), ['Møde']);
+  assert.deepEqual(r.team.kunder, []);
+  assert.deepEqual(r.mig, mig);
 });
 
 test('registreringerFraUr springer deltagere over, der ikke længere er medlemmer', () => {
