@@ -44,7 +44,8 @@ få et overblik og en CSV-fil til fakturering.
   kunde for saldo, hvilken dag kunden er afregnet til og med, tid og
   udestående pr. opgave, det udestående dag for dag (ældste først, som
   betalinger dækker), alle betalinger og kontantudlæg og, foldet sammen, det
-  afregnede. Herfra registreres en betaling, det udestående eksporteres som
+  afregnede. Herfra tilføjes tid med start og slut (kunden er valgt på
+  forhånd), registreres en betaling, det udestående eksporteres som
   CSV, og kunden kan redigeres.
 - **Indstillinger:** kunder (navn, timepris, farve), opgavetyper, og under Mere:
   Brugere (administratorer), Backup og Konto.

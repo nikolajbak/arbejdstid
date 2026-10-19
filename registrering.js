@@ -31,13 +31,15 @@ export function registreringsRaekke(e, status) {
   );
 }
 
-export function aabnRegistrering(entry) {
+// forvalg.kundeId låser en ny registrering til kunden (fra kundesiden); opgaven er den seneste på kunden.
+export function aabnRegistrering(entry, forvalg = {}) {
   const ny = !entry;
   const nu = Date.now();
   const fraStart = new Date(nedTil5(nu) - 3600000);
-  const seneste = senesteKombinationer(medPerson(t.state.registreringer, migITeam()), t.state.kunder, t.state.opgavetyper, null, 1)[0];
+  const mine = medPerson(t.state.registreringer, migITeam());
+  const seneste = senesteKombinationer(forvalg.kundeId ? mine.filter((r) => r.kundeId === forvalg.kundeId) : mine, t.state.kunder, t.state.opgavetyper, null, 1)[0];
   const valg = {
-    kundeId: entry?.kundeId ?? seneste?.kundeId ?? '',
+    kundeId: entry?.kundeId ?? forvalg.kundeId ?? seneste?.kundeId ?? '',
     opgavetypeId: entry?.opgavetypeId ?? seneste?.opgavetypeId ?? '',
     // Kun i et team: hvem tiden gælder for. En eksisterende registrering har én person.
     personer: t.team ? (entry ? [entry.person ?? t.bruger.uid] : [t.bruger.uid]) : null,
@@ -62,7 +64,8 @@ export function aabnRegistrering(entry) {
 
   function tegnValg() {
     const kunde = kundePaa(valg.kundeId);
-    valgRaekker.replaceChildren(
+    // replaceChildren springer ikke null over, som h() gør.
+    valgRaekker.replaceChildren(...[
       h('button', { type: 'button', class: 'raekke', onclick: vaelg },
         valg.kundeId ? prik(kunde ?? { id: valg.kundeId }) : null,
         h('span', { class: 'hoved' }, h('span', { class: 'under' }, 'Kunde'),
@@ -76,7 +79,7 @@ export function aabnRegistrering(entry) {
         h('span', { class: 'hoved' }, h('span', { class: 'under' }, 'Hvem'),
           h('span', { class: 'titel' }, valg.personer.map((p) => personNavn(t.team, p)).join(', '))),
         ikon('hoejre')),
-    );
+    ].filter(Boolean));
   }
 
   function gem(e) {

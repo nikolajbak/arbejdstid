@@ -3,7 +3,7 @@
 import { POST_TYPER, dayKey, formatDuration, formatKr, kundeOversigt, personNavn, toCSV } from './core.js';
 import { t, render, gaaTil, kundePaa } from './tilstand.js';
 import { h, downloadFile, ikon, prik } from './ui.js';
-import { registreringsRaekke } from './registrering.js';
+import { aabnRegistrering, registreringsRaekke } from './registrering.js';
 import { aabnPost, postRaekke } from './post.js';
 import { redigerKunde } from './indstillinger.js';
 
@@ -107,7 +107,10 @@ function kundeSide(id) {
       h('span', { class: 'stor' }, formatKr(Math.abs(o.saldo))),
       h('span', { class: 'under' }, o.afregnetTil ? `Afregnet t.o.m. ${langDato(o.afregnetTil)}` : o.udestaaende.length ? 'Intet afregnet endnu' : null),
       h('div', { class: 'handlinger' },
-        h('button', { class: 'knap', onclick: () => betaling(id, o.saldo) }, 'Registrér betaling'),
+        h('div', { class: 'to' },
+          kunde && h('button', { class: 'knap', onclick: () => aabnRegistrering(null, { kundeId: id }) }, 'Tilføj tid'),
+          h('button', { class: 'knap', onclick: () => betaling(id, o.saldo) }, 'Registrér betaling'),
+        ),
         h('div', { class: 'to' },
           o.udestaaende.length > 0 && h('button', { class: 'knap sekundaer lille', onclick: csv }, 'Eksportér CSV'),
           kunde && h('button', { class: 'knap sekundaer lille', onclick: () => redigerKunde(kunde) }, 'Redigér kunde'),
