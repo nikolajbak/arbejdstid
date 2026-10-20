@@ -1,0 +1,13 @@
+name = "arbejdstid-push"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+[vars]
+FIREBASE_PROJECT = "arbejdstid-dfdc6"
+VAPID_PUBLIC = "BMRlqlzIcPn-iN3l_uuXmRihmJWdgkISYz3Wvha9lzkMESvA9rnnz2dTMf622eYNbRcuBIGCamccJ7X5l_axh2E"
+
+# Hemmeligheder sættes med `wrangler secret put`: VAPID_PRIVATE, VAPID_SUBJECT.
+
+[[kv_namespaces]]
+binding = "ABONNEMENTER"
+id = "UDFYLDES-VED-OPSAETNING"

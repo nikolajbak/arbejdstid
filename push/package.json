@@ -1,0 +1,14 @@
+{
+  "name": "arbejdstid-push",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "test": "node --test test/*.test.js"
+  },
+  "devDependencies": {
+    "@block65/webcrypto-web-push": "^2.0.0",
+    "jose": "^6.2.13",
+    "wrangler": "^4.151.3"
+  }
+}
