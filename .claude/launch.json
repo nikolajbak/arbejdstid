@@ -1,6 +1,33 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "arbejdstid", "runtimeExecutable": "python3", "runtimeArgs": ["-m", "http.server", "8000"], "port": 8000 }
+    {
+      "name": "arbejdstid",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8000"
+      ],
+      "port": 8000
+    },
+    {
+      "name": "emulatorer",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "emulatorer"
+      ],
+      "port": 8080
+    },
+    {
+      "name": "push",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd push && npx wrangler dev --port 8787"
+      ],
+      "port": 8787
+    }
   ]
 }
