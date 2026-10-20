@@ -129,6 +129,8 @@ async function visTip() {
 
 // Kaldes fra commit med beskederne fra nyeBeskeder.
 export function meld(beskeder) {
+  // Uden worker sendes og ryddes intet; så skal der heller ikke samles en kø op.
+  if (!PUSH_URL) return;
   const nu = Date.now();
   for (const { til, slags, antal } of beskeder) {
     koeTilfoej(lager, { teamId: t.arbejdssted, til, slags, antal, fra: t.bruger.uid }, nu);

@@ -17,6 +17,8 @@ function venterPaaMig() {
   return [...reg, ...pos].sort((a, b) => a.tid - b.tid);
 }
 
+const VIS_GODKEND_MS = 15000;
+
 // Det åbne ark, så det tegnes om, når data ændres (her eller fra en anden enhed).
 let aabent = null;
 
@@ -24,10 +26,14 @@ let aabent = null;
 export function godkendKort() {
   aabent?.tegn();
   const n = venterPaaMig().length;
-  // Fra en notifikation: åbn arket, når data er hentet (Tid tegnes kun med data).
+  // Fra en notifikation: åbn arket, når der er noget at godkende. Første data kommer ofte
+  // fra cachen uden den nye post, så ønsket bliver stående, til det udløber (t.visGodkend er tidspunktet).
   if (t.visGodkend) {
-    t.visGodkend = false;
-    if (n) queueMicrotask(aabnGodkend);
+    if (Date.now() - t.visGodkend > VIS_GODKEND_MS) t.visGodkend = 0;
+    else if (n) {
+      t.visGodkend = 0;
+      queueMicrotask(aabnGodkend);
+    }
   }
   if (!n) return null;
   return h('button', { class: 'kort godkend-kort raekke', onclick: aabnGodkend },

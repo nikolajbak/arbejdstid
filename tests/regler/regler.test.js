@@ -290,3 +290,16 @@ test('registrering for et fjernet medlem kan stadig rettes, men ikke flyttes til
   await assertFails(setDoc(doc(ven(), 'teams/t1/registreringer/gl'), { ...tReg('admin'), afventer: true, oprettetAf: 'ven' }));
   await assertFails(setDoc(doc(ven(), 'teams/t1/registreringer/ny'), { ...tReg('tre'), afventer: true, oprettetAf: 'ven' }));
 });
+
+test('poster: personen godkender, andre kan ikke rette en ventende, og en fjernet persons post kan rettes', async () => {
+  await medTeam(toMedlemmer);
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'teams/t1/poster/p1'), tPost({ person: 'tre', afventer: true, oprettetAf: 'ven' }));
+    await setDoc(doc(db, 'teams/t1/poster/p2'), tPost({ person: 'tre', afventer: true, oprettetAf: 'ven' }));
+    await setDoc(doc(db, 'teams/t1/poster/g1'), tPost({ person: 'gammel' }));
+  });
+  await assertSucceeds(setDoc(doc(tre(), 'teams/t1/poster/p1'), tPost({ person: 'tre' })));
+  await assertFails(setDoc(doc(ven(), 'teams/t1/poster/p2'), tPost({ person: 'tre', note: 'x' })));
+  await assertSucceeds(setDoc(doc(ven(), 'teams/t1/poster/g1'), tPost({ person: 'gammel', afventer: true, oprettetAf: 'ven', note: 'rettet' })));
+});

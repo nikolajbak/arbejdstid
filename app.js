@@ -184,7 +184,7 @@ async function efterLogin(user) {
       // Før Tid tegnes med teamets data, så arket åbner, når de er hentet.
       skiftArbejdssted(fraPush);
       if (adresse.get('vis') === 'godkend') {
-        t.visGodkend = true;
+        t.visGodkend = Date.now();
         skiftFane('tid');
       }
     } else {
@@ -228,6 +228,7 @@ const stedNoegle = (uid) => `arbejdstid.arbejdssted.${uid}`;
 
 // null er Mig, ellers et team-id.
 function skiftArbejdssted(id) {
+  t.visGodkend = 0;
   // Et åbent ark hører til det gamle arbejdssted og må ikke gemme i det nye.
   for (const ark of document.querySelectorAll('dialog.ark[open]')) ark.close();
   t.sky?.stop();

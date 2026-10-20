@@ -17,8 +17,8 @@ export const t = {
   team: null,
   teams: [],
   invitationer: [],
-  // Sat fra en notifikation: Tid-fanen åbner Til godkendelse, når data er hentet.
-  visGodkend: false,
+  // Tidspunkt (ms), hvor en notifikation bad om at åbne Til godkendelse; 0 = intet ønske.
+  visGodkend: 0,
 };
 
 let tegn = () => {};
