@@ -273,9 +273,59 @@ export function sidenTekst(iso, nu = new Date()) {
 // --- Teams -------------------------------------------------------------------------
 
 // Én registrering pr. person. Uden personer (Mig) én uden person-felt.
-export function forPersoner(base, personer, nyId) {
+// Registreres der for en anden end afsenderen, afventer den andens godkendelse.
+export function forPersoner(base, personer, nyId, afsender = null) {
   if (!personer?.length) return [{ id: nyId(), ...base }];
-  return personer.map((person) => ({ id: nyId(), ...base, person }));
+  return personer.map((person) => ({
+    id: nyId(),
+    ...base,
+    person,
+    ...(afsender !== null && person !== afsender ? { afventer: true, oprettetAf: afsender } : {}),
+  }));
+}
+
+// --- Godkendelse -------------------------------------------------------------------
+
+// Det, der tæller med: alt, der ikke afventer godkendelse.
+export const godkendte = (liste) => liste.filter((x) => !x.afventer);
+
+// Det, uid selv skal tage stilling til.
+export const ventende = (liste, uid) => liste.filter((x) => x.afventer && x.person === uid);
+
+// Ny kopi af x efter en rettelse foretaget af afsender: andres rettelser afventer
+// personens godkendelse, personens egne (og Mig) er godkendt med det samme.
+export function markerRettelse(x, afsender) {
+  const { afventer, oprettetAf, ...rest } = x;
+  if (afsender === null || !x.person || x.person === afsender) return rest;
+  return { ...rest, afventer: true, oprettetAf: afsender };
+}
+
+export const godkend = (x) => markerRettelse(x, x.person);
+
+// Hvad der er sket mellem to tilstande, som uid skal give andre besked om.
+// Sorteret efter slags, så modtager.
+export function nyeBeskeder(foer, efter, uid) {
+  const alle = (t) => [...(t.registreringer ?? []), ...(t.poster ?? [])];
+  const foerAlle = alle(foer);
+  const efterAlle = alle(efter);
+  const foerMap = new Map(foerAlle.map((x) => [x.id, x]));
+  const efterIder = new Set(efterAlle.map((x) => x.id));
+  const antal = new Map();
+  const tael = (slags, til) => {
+    const noegle = `${slags}\u0000${til}`;
+    antal.set(noegle, (antal.get(noegle) ?? 0) + 1);
+  };
+  for (const x of efterAlle) {
+    if (!x.afventer || x.oprettetAf !== uid || x.person === uid) continue;
+    const f = foerMap.get(x.id);
+    if (!f || !(f.afventer && f.oprettetAf === uid)) tael('afventer', x.person);
+  }
+  for (const x of foerAlle) {
+    if (x.afventer && x.person === uid && x.oprettetAf && !efterIder.has(x.id)) tael('afvist', x.oprettetAf);
+  }
+  return [...antal]
+    .map(([noegle, n]) => { const [slags, til] = noegle.split('\u0000'); return { til, slags, antal: n }; })
+    .sort((a, b) => (a.slags < b.slags ? -1 : a.slags > b.slags ? 1 : a.til < b.til ? -1 : a.til > b.til ? 1 : 0));
 }
 
 // Deltagerne, der stadig er medlemmer. medlemmer er null i Mig.
@@ -287,7 +337,7 @@ export function registreringerFraUr(ur, { slut, timepris, opgavetypeId, note, pe
   const base = { kundeId: ur.kundeId, opgavetypeId: opgavetypeId ?? '', start: ur.start, slut, timepris, note: note ?? '' };
   const deltagere = aktiveDeltagere(ur, medlemmer);
   const personer = deltagere.length ? deltagere : person ? [person] : [];
-  return forPersoner(base, personer, nyId);
+  return forPersoner(base, personer, nyId, person);
 }
 
 export const medPerson = (entries, uid) => (uid ? entries.filter((e) => e.person === uid) : entries);

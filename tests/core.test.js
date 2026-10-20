@@ -742,3 +742,61 @@ test('kundeOversigt uden noget giver nul og tomme lister', () => {
   assert.equal(o.afregnetTil, null);
   assert.equal(o.udestaaende.length + o.afregnet.length + o.afregninger.length + o.opgaver.length, 0);
 });
+
+// --- Godkendelse -------------------------------------------------------------
+
+import { godkendte, ventende, markerRettelse, godkend, nyeBeskeder } from '../core.js';
+
+const godkIds = () => { let i = 0; return () => `n${++i}`; };
+const godkBase = { kundeId: 'k1', opgavetypeId: '', start: '2026-10-19T08:00:00.000Z', slut: '2026-10-19T09:00:00.000Z', timepris: 500, note: '' };
+
+test('godkendte udelader ventende, ventende giver kun dem til uid', () => {
+  const l = [{ id: 'a' }, { id: 'b', afventer: true, person: 'x' }, { id: 'c', afventer: true, person: 'y' }];
+  assert.deepEqual(godkendte(l).map((x) => x.id), ['a']);
+  assert.deepEqual(ventende(l, 'x').map((x) => x.id), ['b']);
+});
+
+test('forPersoner markerer andres registreringer, ikke ens egen', () => {
+  const r = forPersoner(godkBase, ['mig', 'ven'], godkIds(), 'mig');
+  assert.equal(r[0].afventer, undefined);
+  assert.equal(r[0].oprettetAf, undefined);
+  assert.deepEqual([r[1].afventer, r[1].oprettetAf], [true, 'mig']);
+  assert.deepEqual(forPersoner(godkBase, null, godkIds()), [{ id: 'n1', ...godkBase }]);
+});
+
+test('registreringerFraUr og skiftUr markerer deltagerne', () => {
+  const ur = { kundeId: 'k1', opgavetypeId: '', start: godkBase.start, deltagere: ['mig', 'ven'] };
+  const r = registreringerFraUr(ur, { slut: godkBase.slut, timepris: 500, person: 'mig', nyId: godkIds(), medlemmer: ['mig', 'ven'] });
+  assert.deepEqual(r.map((x) => x.afventer ?? false), [false, true]);
+  const s = skiftUr({ registreringer: [], ur }, { kundeId: 'k2' }, godkBase.slut, 500, 'id1', { person: 'mig', nyId: godkIds(), medlemmer: ['mig', 'ven'] });
+  assert.deepEqual(s.registreringer.map((x) => x.afventer ?? false), [false, true]);
+});
+
+test('markerRettelse: andens rettelse venter, personens egen godkender', () => {
+  const x = { id: 'a', person: 'ven' };
+  assert.deepEqual(markerRettelse(x, 'mig'), { id: 'a', person: 'ven', afventer: true, oprettetAf: 'mig' });
+  assert.deepEqual(markerRettelse({ ...x, afventer: true, oprettetAf: 'mig' }, 'ven'), x);
+  assert.deepEqual(godkend({ ...x, afventer: true, oprettetAf: 'mig' }), x);
+  assert.deepEqual(markerRettelse({ id: 'b', type: 'betaling' }, 'mig'), { id: 'b', type: 'betaling' });
+  assert.deepEqual(markerRettelse({ ...x, afventer: true }, null), x);
+});
+
+test('nyeBeskeder: nye ventende grupperes pr. person', () => {
+  const v = (id, person) => ({ id, person, afventer: true, oprettetAf: 'mig' });
+  const b = nyeBeskeder({ registreringer: [], poster: [] }, { registreringer: [v('a', 'ven'), v('b', 'ven'), v('c', 'tre')], poster: [v('p', 'ven')] }, 'mig');
+  assert.deepEqual(b, [{ til: 'tre', slags: 'afventer', antal: 1 }, { til: 'ven', slags: 'afventer', antal: 3 }]);
+});
+
+test('nyeBeskeder: egen ventende rettet igen giver ingen besked', () => {
+  const a = { id: 'a', person: 'ven', afventer: true, oprettetAf: 'mig', note: '' };
+  assert.deepEqual(nyeBeskeder({ registreringer: [a], poster: [] }, { registreringer: [{ ...a, note: 'ny' }], poster: [] }, 'mig'), []);
+});
+
+test('nyeBeskeder: afvist går til den, der oprettede, og kun fra personen', () => {
+  const a = { id: 'a', person: 'mig', afventer: true, oprettetAf: 'ven' };
+  assert.deepEqual(nyeBeskeder({ registreringer: [a], poster: [] }, { registreringer: [], poster: [] }, 'mig'), [{ til: 'ven', slags: 'afvist', antal: 1 }]);
+  // Ophavspersonen sletter selv sin ventende: ingen besked.
+  assert.deepEqual(nyeBeskeder({ registreringer: [a], poster: [] }, { registreringer: [], poster: [] }, 'ven'), []);
+  // Basislinjen mangler allerede posten (slettet på en anden enhed): ingen besked.
+  assert.deepEqual(nyeBeskeder({ registreringer: [], poster: [] }, { registreringer: [], poster: [] }, 'mig'), []);
+});
