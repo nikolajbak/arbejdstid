@@ -1,6 +1,6 @@
 // Fanen Historik: periode, overblik pr. kunde og registreringer dag for dag.
 
-import { afregning, dayKey, farveFor, formatDuration, formatKr, groupByDay, inPeriod, medPerson, monthRange, personNavn, postBeloeb, saldoer, summarize, toCSV } from './core.js';
+import { afregning, dayKey, farveFor, formatDuration, formatKr, godkendte, groupByDay, inPeriod, medPerson, monthRange, personNavn, postBeloeb, saldoer, summarize, toCSV } from './core.js';
 import { t, render, kundePaa } from './tilstand.js';
 import { h, aabnArk, lukArk, arkTop, chip, downloadFile, felt, ikon, prik } from './ui.js';
 import { registreringsRaekke } from './registrering.js';
@@ -107,7 +107,8 @@ function periodeVaelger(g) {
 const medFortegn = (n) => `${n < 0 ? '−' : '+'}${formatKr(Math.abs(n))}`;
 
 function overblik(entries, poster, g) {
-  const s = summarize(entries, t.state.kunder, t.state.opgavetyper, poster);
+  // Kun det godkendte tæller med; dagslisten nedenfor viser alt.
+  const s = summarize(godkendte(entries), t.state.kunder, t.state.opgavetyper, godkendte(poster));
   const farve = (id) => farveFor(kundePaa(id) ?? { id });
   const sidsteDag = new Date(g.to.getTime() - DAG_MS);
   const filnavn = `arbejdstid-${dayKey(g.from)}_${dayKey(sidsteDag)}.csv`;
@@ -139,7 +140,7 @@ function overblik(entries, poster, g) {
     h('div', { class: 'fod' },
       h('button', {
         class: 'knap sekundaer',
-        onclick: () => downloadFile(filnavn, toCSV(entries, t.state.kunder, t.state.opgavetyper, poster, t.team ? (p) => personNavn(t.team, p) : null), 'text/csv;charset=utf-8'),
+        onclick: () => downloadFile(filnavn, toCSV(godkendte(entries), t.state.kunder, t.state.opgavetyper, godkendte(poster), t.team ? (p) => personNavn(t.team, p) : null), 'text/csv;charset=utf-8'),
       }, 'Eksportér CSV'),
     ),
   );
@@ -152,7 +153,7 @@ function dagOverskrift(dag) {
 
 // Hvad hver kunde skylder, uanset perioden. Et tryk åbner kunden.
 function saldoKort(afregnetTil) {
-  const liste = saldoer(t.state.registreringer, t.state.poster, t.state.kunder);
+  const liste = saldoer(godkendte(t.state.registreringer), godkendte(t.state.poster), t.state.kunder);
   if (!liste.length) return null;
   return [
     h('h3', { class: 'dag' }, h('span', {}, 'Saldo')),
@@ -188,8 +189,8 @@ export function visHistorik() {
     person = null;
   }
   const g = graenser();
-  // Over al tid og alle personer, ligesom saldoen.
-  const { status, afregnetTil } = afregning(t.state.registreringer, t.state.poster);
+  // Over al tid og alle personer, ligesom saldoen. Kun det godkendte.
+  const { status, afregnetTil } = afregning(godkendte(t.state.registreringer), godkendte(t.state.poster));
   const entries = medPerson(t.state.registreringer, t.team ? person : null).filter((e) => inPeriod(e, g.from, g.to));
   const poster = t.state.poster.filter((p) => {
     const d = new Date(`${p.dato}T00:00`);

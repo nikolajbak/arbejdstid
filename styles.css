@@ -144,6 +144,9 @@ button.raekke:active, summary.raekke:active { background: var(--daempet); }
 .raekke .titel { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .raekke .under { color: var(--sek); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .raekke .under .afregnet { color: var(--tekst); font-weight: 600; }
+/* Venter på godkendelse: mærket i kundens farve, beløbet nedtonet, da det ikke tæller med endnu. */
+.raekke .under .venter { color: var(--k); font-weight: 600; }
+.raekke.venter .tal { opacity: .5; }
 .raekke > .tal { text-align: right; display: flex; flex-direction: column; }
 .raekke > .ikon { color: var(--sek); width: 16px; height: 16px; }
 
@@ -386,6 +389,8 @@ dialog.ark::backdrop { background: rgb(0 0 0 / 0.35); animation: frem 200ms ease
 .ark-top .tekstknap.staerk { color: var(--k); }
 .ark-overskrift { display: flex; align-items: baseline; gap: 6px; margin: 8px 4px 0; }
 .ark-overskrift .valgfri { color: var(--sek); font-size: 14px; }
+/* Hvem i arket for en post: samme luft som resten af formularen. */
+.post-hvem { display: grid; gap: 12px; }
 
 @keyframes op { from { transform: translateY(100%); } }
 @keyframes frem { from { opacity: 0; } }

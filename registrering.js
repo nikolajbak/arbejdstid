@@ -1,9 +1,9 @@
 // Rettearket for en registrering ("Tilføj tid" og ret) og rækken i lister.
 
-import { amountOf, dayKey, durationMs, farveFor, forPersoner, formatDuration, formatKr, medPerson, parseNumber, personNavn, senesteKombinationer, validateEntry } from './core.js';
+import { amountOf, dayKey, durationMs, farveFor, forPersoner, formatDuration, formatKr, markerRettelse, medPerson, parseNumber, personNavn, senesteKombinationer, validateEntry } from './core.js';
 import { newId } from './store.js';
-import { t, commit, aendr, kundePaa, migITeam } from './tilstand.js';
-import { h, aabnArk, lukArk, arkTop, felt, ikon, prik, klokken, lokalTid, navnPaa, afregnetMaerke } from './ui.js';
+import { t, commit, erstat, kundePaa, migITeam } from './tilstand.js';
+import { h, aabnArk, lukArk, arkTop, felt, ikon, prik, klokken, lokalTid, navnPaa, afregnetMaerke, ventendeMaerke } from './ui.js';
 import { aabnVaelger } from './vaelger.js';
 
 const FEM_MIN = 5 * 60000;
@@ -16,9 +16,10 @@ export function hvadTekst({ kundeId, opgavetypeId }) {
 }
 
 // status er 'afregnet' eller 'delvis' fra afregning(); udeladt viser intet mærke.
+// En ventende registrering viser i stedet, hvem den venter på.
 export function registreringsRaekke(e, status) {
-  const maerke = afregnetMaerke(status);
-  return h('button', { class: 'raekke', 'data-farve': farveFor(kundePaa(e.kundeId) ?? { id: e.kundeId }), onclick: () => aabnRegistrering(e) },
+  const maerke = ventendeMaerke(e) ?? afregnetMaerke(status);
+  return h('button', { class: e.afventer ? 'raekke venter' : 'raekke', 'data-farve': farveFor(kundePaa(e.kundeId) ?? { id: e.kundeId }), onclick: () => aabnRegistrering(e) },
     h('span', { class: 'streg' }),
     h('span', { class: 'hoved' },
       h('span', { class: 'titel' }, hvadTekst(e)),
@@ -106,8 +107,13 @@ export function aabnRegistrering(entry, forvalg = {}) {
     }
     const data = { kundeId: valg.kundeId, opgavetypeId: valg.opgavetypeId, start: s, slut: sl, timepris, note: note.value.trim() };
     // I et team én registrering pr. valgt person; i Mig én uden person.
-    if (ny) t.state.registreringer.push(...forPersoner(data, valg.personer, newId));
-    else aendr('registreringer', entry, valg.personer ? { ...data, person: valg.personer[0] } : data);
+    // Det, der registreres eller rettes for en anden, venter på dennes godkendelse.
+    if (ny) t.state.registreringer.push(...forPersoner(data, valg.personer, newId, migITeam()));
+    else {
+      // Arket kan holde en ældre kopi, hvis der er kommet data fra en anden enhed.
+      const aktuel = t.state.registreringer.find((r) => r.id === entry.id) ?? entry;
+      erstat('registreringer', markerRettelse({ ...aktuel, ...data, ...(valg.personer && { person: valg.personer[0] }) }, migITeam()));
+    }
     lukArk();
     commit();
   }

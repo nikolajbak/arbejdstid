@@ -1,6 +1,7 @@
 // Byggeklodser til brugerfladen: elementer, ark, beskeder og små komponenter.
 
-import { farveFor } from './core.js';
+import { farveFor, personNavn } from './core.js';
+import { t } from './tilstand.js';
 
 // Bygger DOM-elementer. Tekst sættes altid som tekstnoder, aldrig som HTML.
 export function h(tag, attrs = {}, ...boern) {
@@ -137,4 +138,11 @@ export async function downloadFile(navn, indhold, type) {
 const AFREGNET = { afregnet: 'Afregnet', delvis: 'Delvist afregnet' };
 export function afregnetMaerke(status) {
   return AFREGNET[status] ? h('span', { class: 'afregnet' }, AFREGNET[status]) : null;
+}
+
+// "Venter på dig" for personen, ellers "Venter på <navn>"; intet, når x er godkendt.
+// Står i stedet for afregnetMaerke, da det ventende aldrig er afregnet.
+export function ventendeMaerke(x) {
+  if (!x.afventer) return null;
+  return h('span', { class: 'venter' }, x.person === t.bruger.uid ? 'Venter på dig' : `Venter på ${personNavn(t.team, x.person)}`);
 }

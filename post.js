@@ -1,17 +1,18 @@
 // Arket for en post (udgift, brændstof, kontantudlæg eller betaling) og rækken i lister.
 
-import { POST_TYPER, dayKey, farveFor, formatKr, parseNumber, postBeloeb } from './core.js';
+import { POST_TYPER, dayKey, farveFor, formatKr, markerRettelse, parseNumber, personNavn, postBeloeb } from './core.js';
 import { newId } from './store.js';
-import { t, commit, aendr, kundePaa } from './tilstand.js';
-import { h, aabnArk, lukArk, arkTop, chip, felt, ikon, prik, navnPaa, afregnetMaerke } from './ui.js';
+import { t, commit, erstat, kundePaa, migITeam } from './tilstand.js';
+import { h, aabnArk, lukArk, arkTop, chip, felt, ikon, prik, navnPaa, afregnetMaerke, ventendeMaerke } from './ui.js';
 import { aabnVaelger } from './vaelger.js';
 
 const kr = (n) => String(n).replace('.', ',');
 
+// En ventende post viser, hvem den venter på, i stedet for afregnet-mærket.
 export function postRaekke(p, status) {
   const beloeb = postBeloeb(p);
-  const maerke = afregnetMaerke(status);
-  return h('button', { class: 'raekke', 'data-farve': farveFor(kundePaa(p.kundeId) ?? { id: p.kundeId }), onclick: () => aabnPost(p) },
+  const maerke = ventendeMaerke(p) ?? afregnetMaerke(status);
+  return h('button', { class: p.afventer ? 'raekke venter' : 'raekke', 'data-farve': farveFor(kundePaa(p.kundeId) ?? { id: p.kundeId }), onclick: () => aabnPost(p) },
     h('span', { class: 'streg' }),
     h('span', { class: 'hoved' },
       h('span', { class: 'titel' }, `${POST_TYPER[p.type]} · ${navnPaa(t.state.kunder, p.kundeId)}`),
@@ -27,6 +28,8 @@ export function aabnPost(post, forvalg = {}) {
   const valg = {
     type: post?.type ?? forvalg.type ?? 'udgift',
     kundeId: post?.kundeId ?? forvalg.kundeId ?? '',
+    // Kun i et team: hvem der har afholdt udgiften. Én person, ellers tæller den flere gange.
+    person: t.team ? (post?.person ?? t.bruger.uid) : null,
   };
   const startBeloeb = post?.beloeb ?? forvalg.beloeb;
 
@@ -37,6 +40,7 @@ export function aabnPost(post, forvalg = {}) {
   const typer = h('div', { class: 'chips' });
   const kundeRaekke = h('div', { class: 'kort' });
   const titel = h('h3', {});
+  const hvem = h('div', { class: 'post-hvem' });
 
   function tegnTyper() {
     titel.textContent = POST_TYPER[valg.type];
@@ -44,6 +48,24 @@ export function aabnPost(post, forvalg = {}) {
       valgt: type === valg.type,
       onclick: () => { valg.type = type; tegnTyper(); },
     })));
+    tegnHvem();
+  }
+
+  // En betaling er kundens, ikke en persons, så Hvem forsvinder ved Betaling.
+  function tegnHvem() {
+    hvem.hidden = !valg.person || valg.type === 'betaling';
+    if (hvem.hidden) return hvem.replaceChildren();
+    const uid = t.bruger.uid;
+    // Man selv først, så de andre efter navn, som i vælgeren. En fjernet person på en gammel post vises også.
+    const alle = [...new Set([...t.team.medlemmer, valg.person])]
+      .sort((a, b) => (a === uid ? -1 : b === uid ? 1 : personNavn(t.team, a).localeCompare(personNavn(t.team, b), 'da')));
+    hvem.replaceChildren(
+      h('div', { class: 'ark-overskrift' }, h('h3', {}, 'Hvem')),
+      h('div', { class: 'chips' }, alle.map((p) => chip(p === uid ? `${personNavn(t.team, p)} (dig)` : personNavn(t.team, p), {
+        valgt: p === valg.person,
+        onclick: () => { valg.person = p; tegnHvem(); },
+      }))),
+    );
   }
 
   function tegnKunde() {
@@ -67,8 +89,14 @@ export function aabnPost(post, forvalg = {}) {
     const b = parseNumber(beloeb.value);
     if (b === null || b <= 0) return (fejl.textContent = 'Skriv et beløb over 0, fx 1250 eller 1.250,00');
     const data = { kundeId: valg.kundeId, type: valg.type, dato: dato.value, beloeb: b, note: note.value.trim() };
-    if (ny) t.state.poster.push({ id: newId(), ...data });
-    else aendr('poster', post, data);
+    // En betaling har ingen person; en udgift for en anden venter på dennes godkendelse.
+    const person = valg.person && valg.type !== 'betaling' ? { person: valg.person } : {};
+    if (ny) t.state.poster.push(markerRettelse({ id: newId(), ...data, ...person }, migITeam()));
+    else {
+      // Arket kan holde en ældre kopi, hvis der er kommet data fra en anden enhed.
+      const { person: _, ...aktuel } = t.state.poster.find((p) => p.id === post.id) ?? post;
+      erstat('poster', markerRettelse({ ...aktuel, ...data, ...person }, migITeam()));
+    }
     lukArk();
     commit();
   }
@@ -90,6 +118,7 @@ export function aabnPost(post, forvalg = {}) {
         h('button', { type: 'submit', class: 'tekstknap staerk' }, 'Gem')),
       typer,
       kundeRaekke,
+      hvem,
       h('div', { class: 'kort' },
         h('div', { class: 'raekke tidsfelter' }, h('span', { class: 'hoved' }, 'Dato'), dato),
       ),

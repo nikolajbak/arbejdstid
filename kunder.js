@@ -1,6 +1,6 @@
 // Fanen Kunder: hvad hver kunde skylder, og pr. kunde opgaver, udestående og afregninger.
 
-import { POST_TYPER, dayKey, formatDuration, formatKr, kundeOversigt, personNavn, toCSV } from './core.js';
+import { POST_TYPER, dayKey, formatDuration, formatKr, godkendte, kundeOversigt, personNavn, toCSV } from './core.js';
 import { t, render, gaaTil, kundePaa } from './tilstand.js';
 import { h, downloadFile, ikon, prik } from './ui.js';
 import { aabnRegistrering, registreringsRaekke } from './registrering.js';
@@ -38,7 +38,7 @@ function betaling(kundeId, saldo) {
 
 function kundeListe() {
   const alle = new Set([...t.state.kunder.filter((k) => !k.arkiveret).map((k) => k.id), ...t.state.registreringer.map((r) => r.kundeId), ...t.state.poster.map((p) => p.kundeId)]);
-  const kunder = [...alle].map((id) => ({ id, navn: navnPaaKunde(id), o: kundeOversigt(id, t.state.registreringer, t.state.poster, t.state.opgavetyper) }))
+  const kunder = [...alle].map((id) => ({ id, navn: navnPaaKunde(id), o: kundeOversigt(id, godkendte(t.state.registreringer), godkendte(t.state.poster), t.state.opgavetyper) }))
     // Arkiverede og slettede kunder vises kun, mens der er noget udestående.
     .filter((k) => (kundePaa(k.id) && !kundePaa(k.id).arkiveret) || Math.abs(k.o.saldo) >= 0.005);
   if (!kunder.length) return h('p', { class: 'tom' }, 'Ingen kunder endnu. Opret dem under Indstillinger.');
@@ -87,7 +87,7 @@ function sektion(titel, tal) {
 
 function kundeSide(id) {
   const kunde = kundePaa(id);
-  const o = kundeOversigt(id, t.state.registreringer, t.state.poster, t.state.opgavetyper);
+  const o = kundeOversigt(id, godkendte(t.state.registreringer), godkendte(t.state.poster), t.state.opgavetyper);
   const csv = () => downloadFile(
     `arbejdstid-${navnPaaKunde(id).replace(/[^\p{L}\p{N}]+/gu, '-')}-udestaaende-${dayKey(new Date())}.csv`,
     toCSV(o.udestaaende.filter((l) => l.slags === 'registrering').map((l) => l.x), t.state.kunder, t.state.opgavetyper,

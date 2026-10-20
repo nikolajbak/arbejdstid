@@ -66,6 +66,14 @@ export function aendr(samling, x, aendring) {
   else t.state[samling].push({ ...x, ...aendring });
 }
 
+// Lægger x i stedet for elementet med samme id, eller tilføjer det. Til hele
+// kopier, hvor felter også kan forsvinde (fx afventer efter en godkendelse).
+export function erstat(samling, x) {
+  const i = t.state[samling].findIndex((y) => y.id === x.id);
+  if (i >= 0) t.state[samling][i] = x;
+  else t.state[samling].push(x);
+}
+
 export const aktive = (liste) => liste.filter((x) => !x.arkiveret);
 export const arkiverede = (liste) => liste.filter((x) => x.arkiveret);
 export const kundePaa = (id) => t.state.kunder.find((k) => k.id === id);
