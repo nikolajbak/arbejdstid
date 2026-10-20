@@ -217,11 +217,53 @@ test('medlem kan invitere, omdøbe og fjerne, men ikke tilføje medlemmer direkt
 
 test('registrering i et team kræver person, der er medlem', async () => {
   await medTeam({ medlemmer: ['ven', 'tre'], navne: { ven: 'Ven', tre: 'Tre' } });
-  await assertSucceeds(setDoc(doc(ven(), 'teams/t1/registreringer/r1'), tReg('tre')));
+  await assertSucceeds(setDoc(doc(ven(), 'teams/t1/registreringer/r1'), { ...tReg('tre'), afventer: true, oprettetAf: 'ven' }));
   await assertFails(setDoc(doc(ven(), 'teams/t1/registreringer/r2'), reg));
   await assertFails(setDoc(doc(ven(), 'teams/t1/registreringer/r3'), tReg('admin')));
   await assertSucceeds(setDoc(doc(ven(), 'teams/t1/poster/p1'), { kundeId: 'k1', type: 'udgift', dato: '2026-10-08', beloeb: 10, note: '' }));
   await assertFails(setDoc(doc(ven(), 'teams/t1/kunder/k3'), { ...kunde, timepris: -1 }));
+});
+
+const tVent = (person, af) => ({ ...tReg(person), afventer: true, oprettetAf: af });
+const tPost = (data = {}) => ({ kundeId: 'k1', type: 'udgift', dato: '2026-10-19', beloeb: 10, note: '', ...data });
+const toMedlemmer = { medlemmer: ['ven', 'tre'], navne: { ven: 'Ven', tre: 'Tre' } };
+
+test('for en anden kræver afventer og oprettetAf = en selv', async () => {
+  await medTeam(toMedlemmer);
+  await assertFails(setDoc(doc(ven(), 'teams/t1/registreringer/r1'), tReg('tre')));
+  await assertFails(setDoc(doc(ven(), 'teams/t1/registreringer/r1'), { ...tReg('tre'), afventer: true }));
+  await assertFails(setDoc(doc(ven(), 'teams/t1/registreringer/r1'), tVent('tre', 'tre')));
+  await assertFails(setDoc(doc(ven(), 'teams/t1/registreringer/r1'), { ...tVent('tre', 'ven'), afventer: false }));
+  await assertSucceeds(setDoc(doc(ven(), 'teams/t1/registreringer/r1'), tVent('tre', 'ven')));
+  await assertSucceeds(setDoc(doc(ven(), 'teams/t1/registreringer/r2'), tReg('ven')));
+});
+
+test('kun personen kan godkende, og en andens rettelse venter igen', async () => {
+  await medTeam(toMedlemmer);
+  await assertSucceeds(setDoc(doc(ven(), 'teams/t1/registreringer/r1'), tVent('tre', 'ven')));
+  await assertFails(setDoc(doc(ven(), 'teams/t1/registreringer/r1'), tReg('tre')));
+  await assertSucceeds(setDoc(doc(tre(), 'teams/t1/registreringer/r1'), tReg('tre')));
+  await assertFails(setDoc(doc(ven(), 'teams/t1/registreringer/r1'), { ...tReg('tre'), note: 'rettet' }));
+  await assertSucceeds(setDoc(doc(ven(), 'teams/t1/registreringer/r1'), { ...tVent('tre', 'ven'), note: 'rettet' }));
+});
+
+test('ældre teamdata uden de nye felter kan rettes', async () => {
+  await medTeam(toMedlemmer);
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'teams/t1/registreringer/gl'), tReg('tre')));
+  await assertSucceeds(setDoc(doc(tre(), 'teams/t1/registreringer/gl'), { ...tReg('tre'), note: 'egen' }));
+  await assertFails(setDoc(doc(ven(), 'teams/t1/registreringer/gl'), { ...tReg('tre'), note: 'anden' }));
+  await assertSucceeds(setDoc(doc(ven(), 'teams/t1/registreringer/gl'), { ...tVent('tre', 'ven'), note: 'anden' }));
+});
+
+test('poster: person skal være medlem og findes ikke på betalinger', async () => {
+  await medTeam(toMedlemmer);
+  await assertSucceeds(setDoc(doc(ven(), 'teams/t1/poster/p1'), tPost({ person: 'ven' })));
+  await assertSucceeds(setDoc(doc(ven(), 'teams/t1/poster/p2'), tPost({ person: 'tre', afventer: true, oprettetAf: 'ven' })));
+  await assertFails(setDoc(doc(ven(), 'teams/t1/poster/p3'), tPost({ person: 'tre' })));
+  await assertFails(setDoc(doc(ven(), 'teams/t1/poster/p4'), tPost({ person: 'admin', afventer: true, oprettetAf: 'ven' })));
+  await assertFails(setDoc(doc(ven(), 'teams/t1/poster/p5'), tPost({ type: 'betaling', person: 'ven' })));
+  await assertSucceeds(setDoc(doc(ven(), 'teams/t1/poster/p6'), tPost({ type: 'betaling' })));
+  await assertFails(setDoc(doc(ven(), 'brugere/ven/poster/p7'), tPost({ person: 'ven' })));
 });
 
 test('personer/{uid} skrives kun af personen selv og læses af medlemmer', async () => {
@@ -242,7 +284,7 @@ test('ur med deltagere accepteres også i egen profil', async () => {
 test('registrering for et fjernet medlem kan stadig rettes, men ikke flyttes til en ikke-medlem', async () => {
   await medTeam({ medlemmer: ['ven'], navne: { ven: 'Ven', tre: 'Tre' } });
   await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'teams/t1/registreringer/gl'), tReg('tre')));
-  await assertSucceeds(setDoc(doc(ven(), 'teams/t1/registreringer/gl'), { ...tReg('tre'), note: 'rettet' }));
-  await assertFails(setDoc(doc(ven(), 'teams/t1/registreringer/gl'), tReg('admin')));
-  await assertFails(setDoc(doc(ven(), 'teams/t1/registreringer/ny'), tReg('tre')));
+  await assertSucceeds(setDoc(doc(ven(), 'teams/t1/registreringer/gl'), { ...tReg('tre'), afventer: true, oprettetAf: 'ven', note: 'rettet' }));
+  await assertFails(setDoc(doc(ven(), 'teams/t1/registreringer/gl'), { ...tReg('admin'), afventer: true, oprettetAf: 'ven' }));
+  await assertFails(setDoc(doc(ven(), 'teams/t1/registreringer/ny'), { ...tReg('tre'), afventer: true, oprettetAf: 'ven' }));
 });

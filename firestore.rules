@@ -79,9 +79,10 @@ service cloud.firestore {
     }
 
     // Udgifter, brændstof, kontantudlæg og betalinger på en kunde.
-    function gyldigPost() {
+    // ekstra er de felter ud over de faste, der er tilladt (i teams: person og godkendelse).
+    function gyldigPost(ekstra) {
       let d = request.resource.data;
-      return felter(['kundeId', 'type', 'dato', 'beloeb', 'note'], ['kundeId', 'type', 'dato', 'beloeb', 'note'])
+      return felter(['kundeId', 'type', 'dato', 'beloeb', 'note'], ['kundeId', 'type', 'dato', 'beloeb', 'note'].concat(ekstra))
         && d.kundeId is string
         && d.type in ['udgift', 'braendstof', 'kontant', 'betaling']
         && d.dato is string
@@ -149,7 +150,7 @@ service cloud.firestore {
 
       match /poster/{id} {
         allow read, delete: if eget();
-        allow create, update: if eget() && gyldigPost();
+        allow create, update: if eget() && gyldigPost([]);
       }
     }
 
@@ -218,12 +219,22 @@ service cloud.firestore {
         allow create, update: if medlem() && gyldigType();
       }
 
+      // Kun personen kan godkende: alt, en anden skriver for personen, venter.
+      function godkendelseOk() {
+        let d = request.resource.data;
+        let foer = resource == null ? {} : resource.data;
+        return (!('afventer' in d) || (d.afventer == true && 'oprettetAf' in d))
+          && (!('person' in d) || d.person == request.auth.uid || d.get('afventer', false) == true)
+          && (!('oprettetAf' in d) || d.oprettetAf == request.auth.uid || foer.get('oprettetAf', null) == d.oprettetAf);
+      }
+
       match /registreringer/{id} {
         allow read, delete: if medlem();
         allow create, update: if medlem()
           && felter(['kundeId', 'opgavetypeId', 'start', 'slut', 'timepris', 'person'],
-                    ['kundeId', 'opgavetypeId', 'start', 'slut', 'timepris', 'note', 'person'])
+                    ['kundeId', 'opgavetypeId', 'start', 'slut', 'timepris', 'note', 'person', 'oprettetAf', 'afventer'])
           && gyldigReg()
+          && godkendelseOk()
           // En rettelse må beholde en person, der siden er fjernet fra teamet.
           && (request.resource.data.person in team().medlemmer
             || (resource != null && request.resource.data.person == resource.data.person));
@@ -231,7 +242,13 @@ service cloud.firestore {
 
       match /poster/{id} {
         allow read, delete: if medlem();
-        allow create, update: if medlem() && gyldigPost();
+        allow create, update: if medlem()
+          && gyldigPost(['person', 'oprettetAf', 'afventer'])
+          && godkendelseOk()
+          && !(request.resource.data.type == 'betaling' && 'person' in request.resource.data)
+          && (!('person' in request.resource.data)
+            || request.resource.data.person in team().medlemmer
+            || (resource != null && request.resource.data.person == resource.data.get('person', null)));
       }
     }
   }
