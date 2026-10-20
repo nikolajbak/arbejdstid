@@ -234,6 +234,7 @@ test('for en anden kræver afventer og oprettetAf = en selv', async () => {
   await assertFails(setDoc(doc(ven(), 'teams/t1/registreringer/r1'), { ...tReg('tre'), afventer: true }));
   await assertFails(setDoc(doc(ven(), 'teams/t1/registreringer/r1'), tVent('tre', 'tre')));
   await assertFails(setDoc(doc(ven(), 'teams/t1/registreringer/r1'), { ...tVent('tre', 'ven'), afventer: false }));
+  await assertFails(setDoc(doc(ven(), 'teams/t1/registreringer/r1'), { ...tReg('tre'), afventer: true, oprettetAf: null }));
   await assertSucceeds(setDoc(doc(ven(), 'teams/t1/registreringer/r1'), tVent('tre', 'ven')));
   await assertSucceeds(setDoc(doc(ven(), 'teams/t1/registreringer/r2'), tReg('ven')));
 });
@@ -261,6 +262,7 @@ test('poster: person skal være medlem og findes ikke på betalinger', async () 
   await assertSucceeds(setDoc(doc(ven(), 'teams/t1/poster/p2'), tPost({ person: 'tre', afventer: true, oprettetAf: 'ven' })));
   await assertFails(setDoc(doc(ven(), 'teams/t1/poster/p3'), tPost({ person: 'tre' })));
   await assertFails(setDoc(doc(ven(), 'teams/t1/poster/p4'), tPost({ person: 'admin', afventer: true, oprettetAf: 'ven' })));
+  await assertFails(setDoc(doc(ven(), 'teams/t1/poster/p8'), tPost({ person: null, afventer: true, oprettetAf: 'ven' })));
   await assertFails(setDoc(doc(ven(), 'teams/t1/poster/p5'), tPost({ type: 'betaling', person: 'ven' })));
   await assertSucceeds(setDoc(doc(ven(), 'teams/t1/poster/p6'), tPost({ type: 'betaling' })));
   await assertFails(setDoc(doc(ven(), 'brugere/ven/poster/p7'), tPost({ person: 'ven' })));

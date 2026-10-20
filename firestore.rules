@@ -225,7 +225,7 @@ service cloud.firestore {
         let foer = resource == null ? {} : resource.data;
         return (!('afventer' in d) || (d.afventer == true && 'oprettetAf' in d))
           && (!('person' in d) || d.person == request.auth.uid || d.get('afventer', false) == true)
-          && (!('oprettetAf' in d) || d.oprettetAf == request.auth.uid || foer.get('oprettetAf', null) == d.oprettetAf);
+          && (!('oprettetAf' in d) || d.oprettetAf == request.auth.uid || ('oprettetAf' in foer && foer.oprettetAf == d.oprettetAf));
       }
 
       match /registreringer/{id} {
@@ -247,8 +247,9 @@ service cloud.firestore {
           && godkendelseOk()
           && !(request.resource.data.type == 'betaling' && 'person' in request.resource.data)
           && (!('person' in request.resource.data)
-            || request.resource.data.person in team().medlemmer
-            || (resource != null && request.resource.data.person == resource.data.get('person', null)));
+            || (request.resource.data.person is string
+              && (request.resource.data.person in team().medlemmer
+                || (resource != null && request.resource.data.person == resource.data.get('person', null)))));
       }
     }
   }
