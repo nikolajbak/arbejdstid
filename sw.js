@@ -125,7 +125,9 @@ self.addEventListener('notificationclick', (e) => {
   e.notification.close();
   const url = new URL(e.notification.data?.url || './', self.registration.scope).href;
   e.waitUntil((async () => {
-    const [vindue] = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    // Andre apps på samme domæne (fx på github.io) er også med i listen; kun appens egne vinduer.
+    const vinduer = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const vindue = vinduer.find((v) => v.url.startsWith(self.registration.scope));
     if (vindue) {
       try {
         await vindue.focus();

@@ -268,7 +268,7 @@ function notifikationRaekke() {
         console.error(err);
         besked('Notifikationerne kunne ikke ændres. Prøv igen.');
       }
-      tegn();
+      tegn().catch(console.error);
     });
     raekke.replaceWith(ny);
     raekke = ny;
