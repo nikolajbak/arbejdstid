@@ -7,6 +7,7 @@ import { h, aabnArk, lukArk, arkTop, besked, chip, felt, ikon, klokken, lokalTid
 import { aabnVaelger } from './vaelger.js';
 import { aabnTilfoej, postRaekke } from './post.js';
 import { aabnRegistrering, hvadTekst, registreringsRaekke } from './registrering.js';
+import { godkendKort } from './godkend.js';
 
 const nuIso = () => new Date().toISOString();
 const farvePaa = (kundeId) => farveFor(kundePaa(kundeId) ?? { id: kundeId });
@@ -281,7 +282,7 @@ function iDag() {
 }
 
 export function visTid() {
-  return [urkort(), fortsaetFelter(), iDag()];
+  return [godkendKort(), urkort(), fortsaetFelter(), iDag()];
 }
 
 setInterval(() => {

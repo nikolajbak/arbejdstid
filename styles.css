@@ -487,6 +487,13 @@ h2.sektion-top { display: flex; }
 .inviter .felt { flex: 1; margin: 0; }
 .chips.personer { margin: 4px 0 8px; }
 
+/* --- Til godkendelse ------------------------------------------------------------ */
+
+.godkend-kort { margin-bottom: 12px; }
+.godkend-kort .titel { font-weight: 600; }
+.godkend-raekke + .godkend-raekke { border-top: 1px solid var(--linje); }
+.godkend-knapper { display: flex; justify-content: flex-end; gap: 8px; padding: 0 16px 12px; }
+
 /* --- Kunder ------------------------------------------------------------------ */
 
 .kunde-total, .kunde-hoved { display: flex; flex-direction: column; gap: 2px; padding: 18px 16px; }
