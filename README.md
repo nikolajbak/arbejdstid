@@ -30,7 +30,11 @@ få et overblik og en CSV-fil til fakturering.
   medlemmer, melder dig ud og flytter dine egne data ind i teamet. Flytningen
   gemmer først en backup og tømmer derefter Mig. **Tilføj fra Mig** tager kun
   de kunder og opgaver, du vælger: kunderne flyttes med deres tid og poster,
-  opgaverne kopieres, så Mig beholder dem.
+  opgaverne kopieres, så Mig beholder dem. Registrerer du tid eller en udgift
+  for en anden, venter den på personens godkendelse og tæller ikke med i
+  saldoen, før personen har godkendt den under **Tid**. Personen får en
+  notifikation, hvis de er slået til under Indstillinger → Mere →
+  Notifikationer, og du får besked, hvis den afvises.
 - **Historik:** vælg måned med pilene eller tryk på titlen for uge, sidste
   måned eller egen periode. Tryk på en kunde for fordelingen pr. opgave, og på
   en registrering for at rette den. **Saldo** viser, hvad hver kunde skylder
@@ -48,7 +52,7 @@ få et overblik og en CSV-fil til fakturering.
   forhånd), registreres en betaling, det udestående eksporteres som
   CSV, og kunden kan redigeres.
 - **Indstillinger:** kunder (navn, timepris, farve), opgavetyper, og under Mere:
-  Brugere (administratorer), Backup og Konto.
+  Brugere (administratorer), Backup, Notifikationer og Konto.
 
 Appen er en PWA: den kører i browseren, kan lægges på hjemmeskærmen og virker
 uden net. Kun inviterede brugere kan logge ind. Hver brugers data gemmes i
@@ -100,6 +104,32 @@ emulatoren.
 4. **Dansk mail (valgfrit):** Authentication → Templates → Template language:
    Danish, og Project settings → Public-facing name: Arbejdstid.
 
+## Push (én gang)
+
+Notifikationerne sendes af en Cloudflare Worker i `push/`. Alle kommandoer
+køres i `push/`.
+
+1. Opret en gratis Cloudflare-konto, og kør `npx wrangler login`.
+2. **VAPID-nøgler:** `npx web-push generate-vapid-keys`. Den offentlige nøgle
+   skal stå som `VAPID_PUBLIC` i `push/wrangler.toml` og i `push-config.js`.
+   Den private lægges kun som hemmelighed, aldrig i en fil i repoet:
+   `npx wrangler secret put VAPID_PRIVATE`. Kør også
+   `npx wrangler secret put VAPID_SUBJECT` med `mailto:` og din e-mail.
+3. `npx wrangler kv namespace create ABONNEMENTER`, og læg id'et under
+   `[[kv_namespaces]]` i `push/wrangler.toml`.
+4. **Udgiv reglerne først** (se Opsætning af Firebase). Den nye kode kræver
+   reglerne for godkendelse.
+5. `npx wrangler deploy`, og læg workerens adresse (`https://….workers.dev`)
+   i `PUSH_URL` i `push-config.js`. Push derefter appen. Er `PUSH_URL` tom,
+   gemmes beskederne bare i køen på telefonen.
+
+På iPhone virker notifikationer kun, når appen er åbnet fra hjemmeskærmen.
+
+**Lokalt:** kopiér `push/.dev.vars.example` til `push/.dev.vars`, og udfyld
+`VAPID_PRIVATE`. Start emulatorerne, og kør `npx wrangler dev` i `push/`.
+Appen på localhost bruger så workeren på http://127.0.0.1:8787.
+`npm run test:push` tester workeren.
+
 ## Første administrator (én gang)
 
 1. Åbn appen, tryk **Opret konto**, og bekræft din e-mail via linket.
@@ -137,7 +167,7 @@ virker uden net.
 kunder har nu en farve, og registreringer kan være uden opgave. Version 4
 kræver det også: fjernede genveje gemmes på profilen. Version 6 kræver det
 også: poster (udgifter, brændstof, kontantudlæg og betalinger). Version 7
-kræver det også: teams. Udgives reglerne ikke,
+kræver det også: teams. Godkendelse kræver det også. Udgives reglerne ikke,
 afvises de nye ændringer.
 
 ## Installér på iPhone

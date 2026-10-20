@@ -8,6 +8,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js';
 import { auth, db } from './firebase.js';
 import { normaliserEmail } from './core.js';
+import { slaaFra } from './push.js';
 
 const godkendelse = (email) => doc(db, 'godkendte', normaliserEmail(email));
 export const appAdresse = () => location.origin + location.pathname;
@@ -41,8 +42,11 @@ export async function opdaterBruger() {
   return auth.currentUser;
 }
 
-// Logger ud og sletter kopien af data på enheden.
+// Logger ud og sletter kopien af data på enheden. Enhedens push-abonnement
+// afmeldes først, mens adgangsbeviset stadig gælder, så en delt telefon ikke
+// får den forrige brugers notifikationer.
 export async function logUd() {
+  try { await slaaFra(); } catch (err) { console.error(err); }
   await signOut(auth);
   await terminate(db);
   await clearIndexedDbPersistence(db);

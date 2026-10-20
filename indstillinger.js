@@ -1,6 +1,7 @@
 // Fanen Indstillinger: kunder, opgavetyper og arkene Brugere, Backup og Konto.
 
 import { teamSektion } from './teamark.js';
+import { status as pushStatus, slaaTil, slaaFra } from './push.js';
 import { FARVER, dayKey, farveFor, formatKr, invitationsMail, naesteFarve, normaliserEmail, parseNumber, validateBackup } from './core.js';
 import { newId } from './store.js';
 import { logUd, inviter, fjernAdgang, saetAdmin, appAdresse } from './konto.js';
@@ -250,6 +251,32 @@ function merRaekke(titel, under, onclick) {
   );
 }
 
+// Notifikationer gælder enheden, så rækken står både i Mig og i teams. Status
+// hentes asynkront; rækken tegnes med den seneste kendte og skiftes ud, når den nye kommer.
+let sidstePushStatus = null;
+
+function notifikationRaekke() {
+  let raekke = merRaekke('Notifikationer', sidstePushStatus?.tekst, null);
+  async function tegn() {
+    const s = await pushStatus();
+    sidstePushStatus = s;
+    const ny = merRaekke('Notifikationer', s.tekst, async () => {
+      try {
+        if (s.kanSlaaTil) await slaaTil();
+        else if (s.abonneret && confirm('Slå notifikationer fra på denne enhed?')) await slaaFra();
+      } catch (err) {
+        console.error(err);
+        besked('Notifikationerne kunne ikke ændres. Prøv igen.');
+      }
+      tegn();
+    });
+    raekke.replaceWith(ny);
+    raekke = ny;
+  }
+  tegn().catch(console.error);
+  return raekke;
+}
+
 export function visIndstillinger() {
   const kunder = aktive(t.state.kunder).sort(efterNavn);
   const typer = aktive(t.state.opgavetyper).sort(efterNavn);
@@ -280,6 +307,7 @@ export function visIndstillinger() {
       // Brugere og Backup hører til Mig.
       !t.arbejdssted && t.godk?.admin && merRaekke('Brugere', `${t.brugerliste.length} med adgang`, brugereArk),
       !t.arbejdssted && merRaekke('Backup', 'Eksportér eller indlæs', backupArk),
+      notifikationRaekke(),
       merRaekke('Konto', t.bruger.email, kontoArk),
     ),
   ];

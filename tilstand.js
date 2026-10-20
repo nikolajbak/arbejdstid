@@ -1,5 +1,7 @@
 // Fælles tilstand for alle skærme.
 
+import { nyeBeskeder } from './core.js';
+
 export const t = {
   // Brugerens data. null indtil de er hentet efter login.
   state: null,
@@ -54,10 +56,30 @@ export function gaaTil(fane) {
 // Den indloggede brugers uid, når der arbejdes i et team, ellers null.
 export const migITeam = () => (t.arbejdssted ? t.bruger.uid : null);
 
-// Gemmer ændringerne i skyen og tegner skærmen igen.
+// Registreringer og poster, som de så ud sidst, der blev meldt beskeder ud fra.
+// Sættes ved hver data fra skyen og ved skift af arbejdssted, så ændringer fra en
+// anden enhed (fx en afvisning dér) ikke meldes én gang til herfra.
+let basis = null;
+
+export function saetBasis(state) {
+  basis = state ? structuredClone({ registreringer: state.registreringer ?? [], poster: state.poster ?? [] }) : null;
+}
+
+// Får push-beskederne fra commit. Sættes af app.js, så denne fil ikke afhænger af browserens API'er.
+let vedBeskeder = () => {};
+
+export function setVedBeskeder(fn) {
+  vedBeskeder = fn;
+}
+
+// Gemmer ændringerne i skyen og tegner skærmen igen. I et team meldes det, der
+// nu venter på en anden, eller som er afvist (slettet), mens det ventede.
 export function commit() {
+  const beskeder = t.arbejdssted && basis ? nyeBeskeder(basis, t.state, t.bruger.uid) : [];
+  if (t.arbejdssted) saetBasis(t.state);
   t.sky.gem(t.state);
   render();
+  if (beskeder.length) vedBeskeder(beskeder);
 }
 
 // Ændrer elementet i den aktuelle tilstand. Et åbent ark kan holde en ældre

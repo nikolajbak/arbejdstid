@@ -8,7 +8,8 @@ import {
 } from './konto.js';
 import { startSky, migSted, teamSted } from './sky.js';
 import { lytMineTeams } from './team.js';
-import { t, commit, setRender, setSkift, setGaaTil } from './tilstand.js';
+import { t, commit, setRender, setSkift, setGaaTil, saetBasis, setVedBeskeder } from './tilstand.js';
+import { meld, koerKoe } from './push.js';
 import { h, felt, besked } from './ui.js';
 import { aabnSteder } from './teamark.js';
 import { visTid } from './tid.js';
@@ -166,6 +167,7 @@ async function efterLogin(user) {
   }
   t.bruger = user;
   udeBesked = null;
+  koerKoe();
   // Arbejdsstedet åbnes, når listen over teams er kendt, så et husket team kan
   // tjekkes. Fejler listen (fx før reglerne er udgivet), åbnes Mig.
   let gemt = null;
@@ -174,7 +176,21 @@ async function efterLogin(user) {
   const aabnFoerste = () => {
     if (startet) return;
     startet = true;
-    skiftArbejdssted(gemt && t.teams.some((x) => x.id === gemt) ? gemt : null);
+    // Åbnet fra en notifikation: ?team=<id>&vis=godkend.
+    const adresse = new URLSearchParams(location.search);
+    const fraPush = adresse.get('team');
+    const erMedlem = (id) => id && t.teams.some((x) => x.id === id);
+    if (erMedlem(fraPush)) {
+      // Før Tid tegnes med teamets data, så arket åbner, når de er hentet.
+      skiftArbejdssted(fraPush);
+      if (adresse.get('vis') === 'godkend') {
+        t.visGodkend = true;
+        skiftFane('tid');
+      }
+    } else {
+      skiftArbejdssted(erMedlem(gemt) ? gemt : null);
+    }
+    if (adresse.has('team') || adresse.has('vis')) history.replaceState(null, '', location.pathname + location.hash);
   };
   lytMineTeams(user.uid, user.email, ({ teams, invitationer }) => {
     t.teams = teams;
@@ -216,6 +232,7 @@ function skiftArbejdssted(id) {
   for (const ark of document.querySelectorAll('dialog.ark[open]')) ark.close();
   t.sky?.stop();
   t.state = null;
+  saetBasis(null);
   t.arbejdssted = id;
   t.team = id ? t.teams.find((x) => x.id === id) ?? null : null;
   try { localStorage.setItem(stedNoegle(t.bruger.uid), id ?? ''); } catch {}
@@ -226,6 +243,7 @@ function skiftArbejdssted(id) {
     data(d) {
       const foerste = !t.state;
       t.state = d;
+      saetBasis(d);
       if (foerste) document.body.classList.remove('ude');
       render();
       if (foerste && !id) tilbydOverfoersel();
@@ -307,6 +325,9 @@ function render() {
 
 setRender(render);
 setGaaTil(skiftFane);
+setVedBeskeder(meld);
+// Beskeder, der ikke kunne sendes uden net, sendes, så snart der er forbindelse.
+window.addEventListener('online', () => { if (t.bruger) koerKoe(); });
 
 for (const b of document.querySelectorAll('.faner button')) {
   b.addEventListener('click', () => skiftFane(b.dataset.fane));

@@ -25,6 +25,9 @@ const FILER = [
   'godkend.js',
   'kunder.js',
   'indstillinger.js',
+  'push.js',
+  'pushkoe.js',
+  'push-config.js',
   'manifest.webmanifest',
   'icons/icon-192.png',
   'icons/icon-512.png',
@@ -101,4 +104,35 @@ async function erDerNyt() {
 self.addEventListener('message', (e) => {
   if (e.data !== 'tjek') return;
   e.waitUntil(erDerNyt().then((nyt) => e.source.postMessage({ nyt })));
+});
+
+// --- Push -----------------------------------------------------------------
+
+// Workeren sender { title, body, url }; url er relativ til appen.
+self.addEventListener('push', (e) => {
+  let d = {};
+  try { d = e.data?.json() ?? {}; } catch { /* ikke JSON: vis en tom besked */ }
+  e.waitUntil(self.registration.showNotification(d.title || 'Arbejdstid', {
+    body: d.body,
+    data: { url: d.url || './' },
+    icon: './icons/icon-192.png',
+    badge: './icons/icon-192.png',
+  }));
+});
+
+// Et åbent vindue skifter til adressen og kommer frem; ellers åbnes et nyt.
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const url = new URL(e.notification.data?.url || './', self.registration.scope).href;
+  e.waitUntil((async () => {
+    const [vindue] = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    if (vindue) {
+      try {
+        await vindue.focus();
+        await vindue.navigate(url);
+        return;
+      } catch { /* fx et vindue, workeren ikke styrer: åbn et nyt */ }
+    }
+    await self.clients.openWindow(url);
+  })());
 });
