@@ -138,8 +138,9 @@ køres i `push/`.
 https://aistudio.google.com/apikey uden at slå fakturering til; så bruges
 Geminis gratisniveau, der har et loft over kald pr. minut og pr. dag, men
 aldrig koster noget. Læg den i workeren med `npx wrangler secret put
-GEMINI_API_KEY` og kør `npx wrangler deploy`. Modellen står i `GEMINI_MODEL`
-i `push/wrangler.toml`. På gratisniveauet må Google bruge billederne til at
+GEMINI_API_KEY` og kør `npx wrangler deploy`. Modellen vælges som i
+Kalorietælleren: nyeste Flash, som nøglen har adgang til, med kapløb mellem
+modellerne og et helbred pr. model, der huskes i workerens KV. På gratisniveauet må Google bruge billederne til at
 forbedre sine modeller. Uden nøgle virker alt andet; appen siger bare, at
 kvitteringen ikke kunne læses. Momsfeltet kræver, at reglerne udgives igen.
 

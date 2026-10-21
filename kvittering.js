@@ -2,7 +2,8 @@
 import { auth } from './firebase.js';
 import { PUSH_URL } from './push-config.js';
 
-const VENT_MS = 30000;
+// Workeren kan prøve flere modeller i to omgange, før den giver op.
+const VENT_MS = 150000;
 
 export const kanLaese = () => Boolean(PUSH_URL);
 
@@ -20,7 +21,7 @@ export async function laesKvittering(billede) {
   } catch {
     throw new Error('Kvitteringen kunne ikke læses uden net.');
   }
-  if (svar.status === 429) throw new Error('Der er læst mange kvitteringer i dag. Prøv igen senere, eller udfyld selv.');
+  if (svar.status === 429) throw new Error('Gemini er ramt af sin gratisgrænse. Vent et minut, og tryk Læs kvittering, eller udfyld selv.');
   if (!svar.ok) throw new Error('Kvitteringen kunne ikke læses. Udfyld selv.');
   return svar.json();
 }

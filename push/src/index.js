@@ -160,7 +160,7 @@ export default {
         privateKey: env.VAPID_PRIVATE,
         subject: env.VAPID_SUBJECT,
       }),
-      laesKvittering: lavLaesKvittering({ noegle: env.GEMINI_API_KEY, model: env.GEMINI_MODEL }),
+      laesKvittering: lavLaesKvittering({ noegle: env.GEMINI_API_KEY, kv: env.ABONNEMENTER }),
     });
     return handler(request);
   },

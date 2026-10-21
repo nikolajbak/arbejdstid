@@ -4,13 +4,12 @@ compatibility_date = "2026-10-01"
 
 [vars]
 FIREBASE_PROJECT = "arbejdstid-dfdc6"
-# Gemini-model til kvitteringer. Gratisniveauet dækker Flash-modellerne.
-GEMINI_MODEL = "gemini-flash-latest"
 VAPID_PUBLIC = "BMRlqlzIcPn-iN3l_uuXmRihmJWdgkISYz3Wvha9lzkMESvA9rnnz2dTMf622eYNbRcuBIGCamccJ7X5l_axh2E"
 
 # Hemmeligheder sættes med `wrangler secret put`: VAPID_PRIVATE, VAPID_SUBJECT,
 # GEMINI_API_KEY (gratis nøgle fra aistudio.google.com).
 
+# KV'en gemmer også Geminis modelliste og modellernes helbred (nøgler gemini:…).
 [[kv_namespaces]]
 binding = "ABONNEMENTER"
 id = "ce7545e084a24cf985a56d7476498b16"
