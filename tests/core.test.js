@@ -496,7 +496,8 @@ test('validateBackup giver tomme poster for gammel backup og afviser ugyldige po
   const base = { version: 1, kunder: [], opgavetyper: [], registreringer: [] };
   assert.deepEqual(validateBackup(base).data.poster, []);
   assert.equal(validateBackup({ ...base, poster: [post('udgift', 10)] }).ok, true);
-  for (const p of [post('udgift', 0), post('gave', 10), { ...post('udgift', 10), dato: '8/10' }]) {
+  assert.equal(validateBackup({ ...base, poster: [{ ...post('udgift', 10), bilag: true }] }).ok, true);
+  for (const p of [post('udgift', 0), post('gave', 10), { ...post('udgift', 10), dato: '8/10' }, { ...post('udgift', 10), bilag: 'ja' }]) {
     assert.equal(validateBackup({ ...base, poster: [p] }).ok, false, JSON.stringify(p));
   }
 });

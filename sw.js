@@ -18,6 +18,7 @@ const FILER = [
   'vaelger.js',
   'registrering.js',
   'post.js',
+  'billede.js',
   'team.js',
   'teamark.js',
   'tid.js',

@@ -4,6 +4,7 @@ import { POST_TYPER, dayKey, farveFor, formatKr, parseNumber, postBeloeb } from 
 import { newId } from './store.js';
 import { t, commit, aendr, kundePaa } from './tilstand.js';
 import { h, aabnArk, lukArk, arkTop, chip, felt, ikon, prik, navnPaa, afregnetMaerke } from './ui.js';
+import { komprimer } from './billede.js';
 import { aabnVaelger } from './vaelger.js';
 
 const kr = (n) => String(n).replace('.', ',');
@@ -17,7 +18,17 @@ export function postRaekke(p, status) {
       h('span', { class: 'titel' }, `${POST_TYPER[p.type]} · ${navnPaa(t.state.kunder, p.kundeId)}`),
       (maerke || p.note) && h('span', { class: 'under' }, maerke, maerke && p.note && ' · ', p.note),
     ),
+    p.bilag && h('span', { class: 'bilag-maerke', title: 'Har billede' }, ikon('clips')),
     h('span', { class: 'tal' }, h('span', { class: 'titel' }, `${beloeb < 0 ? '−' : '+'}${formatKr(Math.abs(beloeb))}`)),
+  );
+}
+
+// Billedet i fuld størrelse.
+function visBillede(billede) {
+  aabnArk(
+    h('div', { class: 'ark-top' }, h('span'), h('h3', {}, 'Billede'),
+      h('button', { type: 'button', class: 'tekstknap staerk', onclick: lukArk }, 'Luk')),
+    h('img', { class: 'bilag-stort', src: billede, alt: 'Billede på posten' }),
   );
 }
 
@@ -37,6 +48,22 @@ export function aabnPost(post, forvalg = {}) {
   const typer = h('div', { class: 'chips' });
   const kundeRaekke = h('div', { class: 'kort' });
   const titel = h('h3', {});
+  // billede: data-URL eller null. hentet: false, mens et gemt billede hentes,
+  // eller hvis det ikke kunne hentes; så røres det ikke ved Gem.
+  const bilag = { billede: null, hentet: !post?.bilag, aendret: false };
+  const bilagKort = h('div', { class: 'kort bilag' });
+  const vaelgFil = h('input', { type: 'file', accept: 'image/*', hidden: true, onchange: async () => {
+    const fil = vaelgFil.files[0];
+    vaelgFil.value = '';
+    if (!fil) return;
+    fejl.textContent = '';
+    try {
+      Object.assign(bilag, { billede: await komprimer(fil), hentet: true, aendret: true });
+    } catch {
+      fejl.textContent = 'Billedet kunne ikke læses. Prøv et andet.';
+    }
+    tegnBilag();
+  } });
 
   function tegnTyper() {
     titel.textContent = POST_TYPER[valg.type];
@@ -59,6 +86,22 @@ export function aabnPost(post, forvalg = {}) {
     ikon('hoejre')));
   }
 
+  function tegnBilag(tekst) {
+    const knap = (navn, onclick, klasse = 'tekstknap') => h('button', { type: 'button', class: klasse, onclick }, navn);
+    if (tekst) return bilagKort.replaceChildren(h('p', { class: 'hjaelp' }, tekst));
+    if (!bilag.billede) {
+      return bilagKort.replaceChildren(knap('Tilføj billede', () => vaelgFil.click(), 'raekke'),
+        h('p', { class: 'hjaelp' }, 'Tag et billede af kvitteringen, eller vælg et fra Fotos.'));
+    }
+    bilagKort.replaceChildren(
+      h('button', { type: 'button', class: 'bilag-vis', onclick: () => visBillede(bilag.billede) },
+        h('img', { src: bilag.billede, alt: 'Billede på posten' })),
+      h('div', { class: 'bilag-knapper' },
+        knap('Skift billede', () => vaelgFil.click()),
+        knap('Fjern', () => { Object.assign(bilag, { billede: null, hentet: true, aendret: true }); tegnBilag(); })),
+    );
+  }
+
   function gem(e) {
     e.preventDefault();
     fejl.textContent = '';
@@ -66,8 +109,14 @@ export function aabnPost(post, forvalg = {}) {
     if (!dato.value) return (fejl.textContent = 'Vælg en dato');
     const b = parseNumber(beloeb.value);
     if (b === null || b <= 0) return (fejl.textContent = 'Skriv et beløb over 0, fx 1250 eller 1.250,00');
-    const data = { kundeId: valg.kundeId, type: valg.type, dato: dato.value, beloeb: b, note: note.value.trim() };
-    if (ny) t.state.poster.push({ id: newId(), ...data });
+    const data = { kundeId: valg.kundeId, type: valg.type, dato: dato.value, beloeb: b, note: note.value.trim(),
+      bilag: bilag.hentet ? !!bilag.billede : !!post?.bilag };
+    const id = post?.id ?? newId();
+    if (bilag.aendret) {
+      if (bilag.billede) t.sky.gemBilag(id, bilag.billede);
+      else if (!ny) t.sky.sletBilag(id);
+    }
+    if (ny) t.state.poster.push({ id, ...data });
     else aendr('poster', post, data);
     lukArk();
     commit();
@@ -76,12 +125,24 @@ export function aabnPost(post, forvalg = {}) {
   function slet() {
     if (!confirm('Slet posten?')) return;
     t.state.poster = t.state.poster.filter((p) => p.id !== post.id);
+    if (post.bilag) t.sky.sletBilag(post.id);
     lukArk();
     commit();
   }
 
   tegnTyper();
   tegnKunde();
+  if (bilag.hentet) tegnBilag();
+  else {
+    tegnBilag('Henter billede …');
+    t.sky.hentBilag(post.id)
+      .then((billede) => {
+        if (bilag.aendret) return;
+        Object.assign(bilag, { billede, hentet: true });
+        tegnBilag(billede ? null : 'Billedet findes ikke længere.');
+      })
+      .catch(() => { if (!bilag.aendret) tegnBilag('Billedet kan ikke hentes uden net.'); });
+  }
   aabnArk(
     h('form', { onsubmit: gem },
       h('div', { class: 'ark-top' },
@@ -95,6 +156,8 @@ export function aabnPost(post, forvalg = {}) {
       ),
       felt('Beløb i kr', beloeb),
       felt('Note', note),
+      bilagKort,
+      vaelgFil,
       fejl,
       !ny && h('button', { class: 'knap fare', type: 'button', onclick: slet }, 'Slet posten'),
     ),
