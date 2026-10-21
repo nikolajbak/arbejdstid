@@ -171,7 +171,8 @@ virker uden net.
 kunder har nu en farve, og registreringer kan være uden opgave. Version 4
 kræver det også: fjernede genveje gemmes på profilen. Version 6 kræver det
 også: poster (udgifter, brændstof, kontantudlæg og betalinger). Version 7
-kræver det også: teams. Godkendelse og billeder på poster kræver det også. Udgives reglerne ikke,
+kræver det også: teams. Godkendelse og billeder på poster kræver det også, og det gør
+moms på kunder. Udgives reglerne ikke,
 afvises de nye ændringer.
 
 ## Installér på iPhone

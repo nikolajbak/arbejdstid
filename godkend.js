@@ -51,7 +51,7 @@ function raekke({ samling, x }) {
   const fra = personNavn(t.team, x.oprettetAf);
   const titel = reg ? hvadTekst(x) : `${POST_TYPER[x.type]} · ${navnPaa(t.state.kunder, x.kundeId)}`;
   const naar = reg ? `${kortDato(new Date(x.start))} · ${klokken(x.start)}–${klokken(x.slut)}` : kortDato(new Date(`${x.dato}T12:00`));
-  const beloeb = reg ? formatKr(amountOf(x)) : (() => { const b = postBeloeb(x); return `${b < 0 ? '−' : '+'}${formatKr(Math.abs(b))}`; })();
+  const beloeb = reg ? formatKr(amountOf(x, t.state.kunder)) : (() => { const b = postBeloeb(x); return `${b < 0 ? '−' : '+'}${formatKr(Math.abs(b))}`; })();
   const godkendDen = () => { erstat(samling, godkend(x)); commit(); };
   const afvis = () => {
     if (!confirm(`${reg ? 'Slet registreringen?' : 'Slet posten?'} ${fra} får besked.`)) return;

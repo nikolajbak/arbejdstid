@@ -10,8 +10,13 @@ export function durationMs(entry) {
   return Math.max(1, Math.ceil(ms / KVARTER_MS)) * KVARTER_MS;
 }
 
-export function amountOf(entry) {
-  return (durationMs(entry) / TIME_MS) * entry.timepris;
+// Kunder med moms betaler 25 % oven i timeprisen. kunder kan udelades, så er det uden moms.
+export const MOMS = 0.25;
+
+export const medMoms = (kunder, kundeId) => kunder.find((k) => k.id === kundeId)?.moms === true;
+
+export function amountOf(entry, kunder = []) {
+  return (durationMs(entry) / TIME_MS) * entry.timepris * (medMoms(kunder, entry.kundeId) ? 1 + MOMS : 1);
 }
 
 // --- Poster: penge på en kunde ud over tiden ---------------------------------------
@@ -27,7 +32,7 @@ export function postBeloeb(p) {
 export function saldoer(registreringer, poster, kunder) {
   const pr = new Map();
   const laeg = (id, kr) => pr.set(id, (pr.get(id) ?? 0) + kr);
-  for (const r of registreringer) laeg(r.kundeId, amountOf(r));
+  for (const r of registreringer) laeg(r.kundeId, amountOf(r, kunder));
   for (const p of poster) laeg(p.kundeId, postBeloeb(p));
   return [...pr]
     .filter(([, saldo]) => Math.abs(saldo) >= 0.005)
@@ -40,13 +45,13 @@ export function saldoer(registreringer, poster, kunder) {
 // lægges til saldoen) 'afregnet' eller 'delvis'; åbne er udeladt. rest er, hvad der
 // mangler på de delvise. afregnetTil er pr. kunde den sidste dag, hvor alt til og med
 // er afregnet.
-export function afregning(registreringer, poster) {
+export function afregning(registreringer, poster, kunder = []) {
   const pr = new Map();
   const kunde = (id) => {
     if (!pr.has(id)) pr.set(id, { kredit: 0, linjer: [] });
     return pr.get(id);
   };
-  for (const r of registreringer) kunde(r.kundeId).linjer.push({ id: r.id, tid: new Date(r.start).getTime(), dag: dayKey(new Date(r.start)), kr: amountOf(r) });
+  for (const r of registreringer) kunde(r.kundeId).linjer.push({ id: r.id, tid: new Date(r.start).getTime(), dag: dayKey(new Date(r.start)), kr: amountOf(r, kunder) });
   for (const p of poster) {
     const kr = postBeloeb(p);
     if (kr < 0) kunde(p.kundeId).kredit -= kr;
@@ -82,15 +87,15 @@ export function afregning(registreringer, poster) {
 // Alt om én kunde over al tid: saldo, tid og udestående pr. opgave, det udestående
 // (ældste først), det afregnede (nyeste først) og betalingerne (nyeste først).
 // Linjer er { slags: 'registrering' | 'post', x, dag, kr, aabent }.
-export function kundeOversigt(kundeId, registreringer, poster, opgavetyper) {
+export function kundeOversigt(kundeId, registreringer, poster, opgavetyper, kunder = []) {
   const regs = registreringer.filter((r) => r.kundeId === kundeId);
   const psts = poster.filter((p) => p.kundeId === kundeId);
-  const { status, rest, afregnetTil } = afregning(regs, psts);
+  const { status, rest, afregnetTil } = afregning(regs, psts, kunder);
   const aabent = (id, kr) => (status.get(id) === 'afregnet' ? 0 : status.get(id) === 'delvis' ? rest.get(id) : kr);
   const typer = new Map();
   const linjer = [];
   for (const r of regs) {
-    const kr = amountOf(r);
+    const kr = amountOf(r, kunder);
     const l = { slags: 'registrering', x: r, tid: new Date(r.start).getTime(), dag: dayKey(new Date(r.start)), kr, aabent: aabent(r.id, kr) };
     linjer.push(l);
     if (!typer.has(r.opgavetypeId)) typer.set(r.opgavetypeId, { opgavetypeId: r.opgavetypeId, navn: typeNavn(opgavetyper, r.opgavetypeId), ms: 0, kr: 0, aabent: 0 });
@@ -370,7 +375,7 @@ export function summarize(entries, kunder, opgavetyper, poster = []) {
   let kr = 0;
   for (const e of entries) {
     const d = durationMs(e);
-    const a = amountOf(e);
+    const a = amountOf(e, kunder);
     ms += d;
     kr += a;
     const k = kundeI(e.kundeId);
@@ -405,7 +410,7 @@ const csvFelt = (v) => {
 
 // personNavn(uid) giver i et team en sidste kolonne, Person.
 export function toCSV(entries, kunder, opgavetyper, poster = [], personNavn = null) {
-  const linjer = [`Dato;Start;Slut;Kunde;Opgavetype;Timer;Timepris;Beløb;Note${personNavn ? ';Person' : ''}`];
+  const linjer = [`Dato;Start;Slut;Kunde;Opgavetype;Timer;Timepris;Beløb;Heraf moms;Note${personNavn ? ';Person' : ''}`];
   const person = (x) => (personNavn ? `;${csvFelt(x.person ? personNavn(x.person) : '')}` : '');
   const dansk = (d) => `${p2(d.getDate())}-${p2(d.getMonth() + 1)}-${d.getFullYear()}`;
   // Poster har kun en dato; de sorteres ved dagens start.
@@ -417,10 +422,11 @@ export function toCSV(entries, kunder, opgavetyper, poster = [], personNavn = nu
     if (p) {
       // Beløbet er et tal og må gerne starte med minus, så det går uden om csvFelt.
       const felter = [dansk(t), '', '', navnPaa(kunder, p.kundeId), POST_TYPER[p.type], '', ''].map(csvFelt);
-      linjer.push([...felter, csvTal(postBeloeb(p)), csvFelt(p.note)].join(';') + person(p));
+      linjer.push([...felter, csvTal(postBeloeb(p)), '', csvFelt(p.note)].join(';') + person(p));
       continue;
     }
     const s = t;
+    const kr = amountOf(e, kunder);
     linjer.push([
       dansk(s),
       klokken(s),
@@ -429,7 +435,8 @@ export function toCSV(entries, kunder, opgavetyper, poster = [], personNavn = nu
       e.opgavetypeId ? navnPaa(opgavetyper, e.opgavetypeId) : '',
       csvTal(durationMs(e) / TIME_MS),
       csvTal(e.timepris),
-      csvTal(amountOf(e)),
+      csvTal(kr),
+      medMoms(kunder, e.kundeId) ? csvTal(kr - kr / (1 + MOMS)) : '',
       e.note,
     ].map(csvFelt).join(';') + person(e));
   }
@@ -441,7 +448,7 @@ const erTal = (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0;
 const erDato = (v) => erTekst(v) && !Number.isNaN(new Date(v).getTime());
 const erValgfriTekst = (v) => v == null || erTekst(v);
 
-const gyldigKunde = (k) => k && erTekst(k.id) && erTekst(k.navn) && erTal(k.timepris);
+const gyldigKunde = (k) => k && erTekst(k.id) && erTekst(k.navn) && erTal(k.timepris) && (k.moms == null || typeof k.moms === 'boolean');
 const gyldigType = (t) => t && erTekst(t.id) && erTekst(t.navn);
 const gyldigReg = (r) => r && erTekst(r.id) && erTekst(r.kundeId) && erTekst(r.opgavetypeId)
   && erDato(r.start) && erDato(r.slut) && new Date(r.slut) > new Date(r.start)

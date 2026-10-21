@@ -190,7 +190,7 @@ export function visHistorik() {
   }
   const g = graenser();
   // Over al tid og alle personer, ligesom saldoen. Kun det godkendte.
-  const { status, afregnetTil } = afregning(godkendte(t.state.registreringer), godkendte(t.state.poster));
+  const { status, afregnetTil } = afregning(godkendte(t.state.registreringer), godkendte(t.state.poster), t.state.kunder);
   const entries = medPerson(t.state.registreringer, t.team ? person : null).filter((e) => inPeriod(e, g.from, g.to));
   const poster = t.state.poster.filter((p) => {
     const d = new Date(`${p.dato}T00:00`);

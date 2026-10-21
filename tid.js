@@ -110,7 +110,7 @@ function stopArk(ur, slut) {
     h('div', { class: 'stop-top blod', 'data-farve': farvePaa(ur.kundeId) },
       h('span', { class: 'kunde' }, navnPaa(t.state.kunder, ur.kundeId)),
       h('span', { class: 'tid' }, formatDuration(durationMs(r))),
-      h('span', {}, formatKr(amountOf(r))),
+      h('span', {}, formatKr(amountOf(r, t.state.kunder))),
     ),
     h('div', { class: 'chips', 'data-farve': farvePaa(ur.kundeId) },
       typer.map((x) => chip(x.navn, { onclick: () => gem(x.id) })),

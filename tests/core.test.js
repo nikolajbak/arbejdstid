@@ -119,7 +119,7 @@ test('summarize viser ukendt kunde som (slettet)', () => {
 
 import { toCSV, validateBackup } from '../core.js';
 
-const HEADER = 'Dato;Start;Slut;Kunde;Opgavetype;Timer;Timepris;Beløb;Note';
+const HEADER = 'Dato;Start;Slut;Kunde;Opgavetype;Timer;Timepris;Beløb;Heraf moms;Note';
 const csvKunder = [{ id: 'k1', navn: 'Gammel Kunde', timepris: 800, arkiveret: true }];
 const csvTyper = [{ id: 't1', navn: 'Møde' }];
 const csvEntry = (note = '', start = [2026, 9, 7, 9, 0], timer = 1.5) => {
@@ -134,7 +134,7 @@ test('toCSV starter med BOM og header', () => {
 
 test('toCSV række har dansk dato, tid, decimalkomma og arkiveret kundenavn', () => {
   const linjer = toCSV([csvEntry()], csvKunder, csvTyper).split('\r\n');
-  assert.equal(linjer[1], '07-10-2026;09:00;10:30;Gammel Kunde;Møde;1,50;800,00;1200,00;');
+  assert.equal(linjer[1], '07-10-2026;09:00;10:30;Gammel Kunde;Møde;1,50;800,00;1200,00;;');
 });
 
 test('toCSV sorterer ældste først', () => {
@@ -488,8 +488,8 @@ test('summarize tager kunder med, der kun har poster, og summerer poster pr. typ
 
 test('toCSV skriver poster som linjer med fortegn sorteret efter dato', () => {
   const linjer = toCSV([time('k1', 800)], [k('k1', 'A')], [], [post('betaling', 900, 'k1', '2026-10-09', 'MobilePay'), post('udgift', 120.5, 'k1', '2026-10-07')]).split('\r\n');
-  assert.equal(linjer[1], '07-10-2026;;;A;Udgift;;;120,50;');
-  assert.equal(linjer[3], '09-10-2026;;;A;Betaling;;;-900,00;MobilePay');
+  assert.equal(linjer[1], '07-10-2026;;;A;Udgift;;;120,50;;');
+  assert.equal(linjer[3], '09-10-2026;;;A;Betaling;;;-900,00;;MobilePay');
 });
 
 test('validateBackup giver tomme poster for gammel backup og afviser ugyldige poster', () => {
@@ -592,9 +592,9 @@ test('personNavn giver gemt navn eller (tidligere medlem)', () => {
 test('toCSV med personNavn tilføjer Person-kolonnen sidst, også tom for poster', () => {
   const reg = { ...time('k1', 800), person: 'u1' };
   const linjer = toCSV([reg], [k('k1', 'A')], [], [post('udgift', 10, 'k1', '2026-10-09')], (uid) => (uid === 'u1' ? 'Nikolaj' : '')).split('\r\n');
-  assert.ok(linjer[0].endsWith('Dato;Start;Slut;Kunde;Opgavetype;Timer;Timepris;Beløb;Note;Person'));
+  assert.ok(linjer[0].endsWith('Dato;Start;Slut;Kunde;Opgavetype;Timer;Timepris;Beløb;Heraf moms;Note;Person'));
   assert.ok(linjer[1].endsWith(';Nikolaj'));
-  assert.ok(linjer[2].endsWith('10,00;;'));
+  assert.ok(linjer[2].endsWith('10,00;;;'));
 });
 
 test('flytTilTeam fletter efter navn, sætter person og giver ingen dubletter ved anden kørsel', () => {
@@ -800,4 +800,21 @@ test('nyeBeskeder: afvist går til den, der oprettede, og kun fra personen', () 
   assert.deepEqual(nyeBeskeder({ registreringer: [a], poster: [] }, { registreringer: [], poster: [] }, 'ven'), []);
   // Basislinjen mangler allerede posten (slettet på en anden enhed): ingen besked.
   assert.deepEqual(nyeBeskeder({ registreringer: [], poster: [] }, { registreringer: [], poster: [] }, 'mig'), []);
+});
+
+test('moms: kunder med moms betaler 25 % oven i tiden, udgifter er uændrede', () => {
+  const kunder = [{ id: 'm', navn: 'Med', timepris: 800, moms: true }, { id: 'u', navn: 'Uden', timepris: 800, moms: false }];
+  const r = (kundeId) => ({ id: kundeId, kundeId, opgavetypeId: '', start: '2026-10-07T09:00:00', slut: '2026-10-07T10:00:00', timepris: 800 });
+  assert.equal(amountOf(r('m'), kunder), 1000);
+  assert.equal(amountOf(r('u'), kunder), 800);
+  assert.equal(amountOf(r('m')), 800);
+  const udgift = { id: 'p', kundeId: 'm', type: 'udgift', dato: '2026-10-07', beloeb: 100, note: '' };
+  assert.deepEqual(saldoer([r('m')], [udgift], kunder), [{ kundeId: 'm', navn: 'Med', saldo: 1100 }]);
+  assert.equal(kundeOversigt('m', [r('m')], [udgift], [], kunder).saldo, 1100);
+  assert.equal(summarize([r('m')], kunder, []).kr, 1000);
+  assert.equal(afregning([r('m')], [{ ...udgift, type: 'betaling', beloeb: 1000 }], kunder).status.get('m'), 'afregnet');
+  const linje = toCSV([r('m')], kunder, []).split('\r\n')[1];
+  assert.ok(linje.endsWith(';800,00;1000,00;200,00;'));
+  assert.equal(validateBackup({ version: 1, kunder: [{ ...kunder[0], moms: 'ja' }], opgavetyper: [], registreringer: [] }).ok, false);
+  assert.equal(validateBackup({ version: 1, kunder, opgavetyper: [], registreringer: [] }).ok, true);
 });

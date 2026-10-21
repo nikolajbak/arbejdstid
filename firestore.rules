@@ -48,7 +48,8 @@ service cloud.firestore {
 
     function gyldigKunde() {
       let d = request.resource.data;
-      return felter(['navn', 'timepris', 'arkiveret'], ['navn', 'timepris', 'arkiveret', 'farve'])
+      return felter(['navn', 'timepris', 'arkiveret'], ['navn', 'timepris', 'arkiveret', 'farve', 'moms'])
+        && (!('moms' in d) || d.moms is bool)
         && (!('farve' in d) || d.farve in ['skov', 'ler', 'indigo', 'blomme', 'rosa', 'okker', 'hav', 'skifer'])
         && d.navn is string
         && d.navn.size() > 0

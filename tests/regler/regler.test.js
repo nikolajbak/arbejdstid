@@ -97,6 +97,12 @@ test('ugyldige kunder afvises', async () => {
   await assertFails(setDoc(doc(ven(), 'brugere/ven/kunder/k2'), { ...kunde, ekstra: 1 }));
 });
 
+test('kunde kan være med eller uden moms', async () => {
+  await assertSucceeds(setDoc(doc(ven(), 'brugere/ven/kunder/k3'), { ...kunde, moms: true }));
+  await assertSucceeds(setDoc(doc(ven(), 'brugere/ven/kunder/k4'), { ...kunde, moms: false }));
+  await assertFails(setDoc(doc(ven(), 'brugere/ven/kunder/k5'), { ...kunde, moms: 'ja' }));
+});
+
 test('registrering skal have slut efter start og rigtige felter', async () => {
   await assertSucceeds(setDoc(doc(ven(), 'brugere/ven/registreringer/r1'), reg));
   await assertFails(setDoc(doc(ven(), 'brugere/ven/registreringer/r2'), { ...reg, slut: reg.start }));

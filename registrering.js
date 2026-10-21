@@ -27,7 +27,7 @@ export function registreringsRaekke(e, status) {
     ),
     h('span', { class: 'tal' },
       h('span', { class: 'titel' }, formatDuration(durationMs(e))),
-      h('span', { class: 'under' }, formatKr(amountOf(e))),
+      h('span', { class: 'under' }, formatKr(amountOf(e, t.state.kunder))),
     ),
   );
 }

@@ -9,7 +9,7 @@ import { t, commit, aendr, aktive, arkiverede } from './tilstand.js';
 import { h, aabnArk, lukArk, arkTop, chip, felt, ikon, prik, besked, downloadFile } from './ui.js';
 
 const efterNavn = (a, b) => a.navn.localeCompare(b.navn, 'da');
-const kr = (n) => `${formatKr(n)}/t`;
+const kr = (k) => `${formatKr(k.timepris)}/t${k.moms ? ' + moms' : ''}`;
 
 // --- Kunder ---------------------------------------------------------------------
 
@@ -20,6 +20,16 @@ export function redigerKunde(kunde) {
   const pris = h('input', { value: kunde ? String(kunde.timepris).replace('.', ',') : '', inputmode: 'decimal', autocomplete: 'off', placeholder: 'fx 850' });
   const fejl = h('p', { class: 'fejl' });
   const farver = h('div', { class: 'farver', role: 'radiogroup', 'aria-label': 'Farve' });
+  let moms = kunde?.moms === true;
+  const momsValg = h('div', { class: 'chips' });
+
+  function tegnMoms() {
+    momsValg.replaceChildren(
+      chip('Uden moms', { valgt: !moms, onclick: () => { moms = false; tegnMoms(); } }),
+      chip('Med moms', { valgt: moms, onclick: () => { moms = true; tegnMoms(); } }),
+    );
+  }
+  tegnMoms();
 
   function tegnFarver() {
     farver.replaceChildren(...FARVER.map((f) => h('button', {
@@ -40,8 +50,8 @@ export function redigerKunde(kunde) {
     const p = parseNumber(pris.value);
     if (!n) return (fejl.textContent = 'Skriv et navn');
     if (p === null) return (fejl.textContent = 'Skriv en timepris, fx 850 eller 850,50');
-    if (ny) t.state.kunder.push({ id: newId(), navn: n, timepris: p, arkiveret: false, farve });
-    else aendr('kunder', kunde, { navn: n, timepris: p, farve });
+    if (ny) t.state.kunder.push({ id: newId(), navn: n, timepris: p, arkiveret: false, farve, moms });
+    else aendr('kunder', kunde, { navn: n, timepris: p, farve, moms });
     lukArk();
     commit();
   }
@@ -52,6 +62,8 @@ export function redigerKunde(kunde) {
       felt('Navn', navn),
       felt('Timepris i kr', pris),
       !ny && h('p', { class: 'hjaelp' }, 'En ny timepris gælder kun for tid, der registreres fremover.'),
+      h('div', { class: 'felt' }, h('span', {}, 'Betaling'), momsValg),
+      h('p', { class: 'hjaelp' }, 'Med moms lægges 25 % oven i timeprisen på al kundens tid. Udgifter er uændrede.'),
       h('div', { class: 'felt' }, h('span', {}, 'Farve'), farver),
       fejl,
       !ny && h('button', {
@@ -287,11 +299,11 @@ export function visIndstillinger() {
       ? h('div', { class: 'kort' }, kunder.map((k) => h('button', { class: 'raekke', onclick: () => redigerKunde(k) },
         prik(k),
         h('span', { class: 'hoved' }, h('span', { class: 'titel' }, k.navn)),
-        h('span', { class: 'tal under' }, kr(k.timepris)),
+        h('span', { class: 'tal under' }, kr(k)),
         ikon('hoejre'),
       )))
       : h('p', { class: 'tom' }, 'Ingen kunder endnu. Du kan også oprette dem, når du starter et ur.'),
-    arkivSektion('kunder', (k) => kr(k.timepris)),
+    arkivSektion('kunder', (k) => kr(k)),
 
     h('div', { class: 'sektion-top' }, h('h2', {}, 'Opgavetyper'),
       h('button', { class: 'tekstknap', onclick: () => redigerType() }, ikon('plus'), 'Ny')),
