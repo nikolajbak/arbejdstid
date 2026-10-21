@@ -117,7 +117,7 @@ test('summarize viser ukendt kunde som (slettet)', () => {
   assert.equal(s.kunder[0].typer[0].navn, '(slettet)');
 });
 
-import { toCSV, validateBackup } from '../core.js';
+import { kvitteringNote, toCSV, validateBackup } from '../core.js';
 
 const HEADER = 'Dato;Start;Slut;Kunde;Opgavetype;Timer;Timepris;Beløb;Heraf moms;Note';
 const csvKunder = [{ id: 'k1', navn: 'Gammel Kunde', timepris: 800, arkiveret: true }];
@@ -490,6 +490,13 @@ test('toCSV skriver poster som linjer med fortegn sorteret efter dato', () => {
   const linjer = toCSV([time('k1', 800)], [k('k1', 'A')], [], [post('betaling', 900, 'k1', '2026-10-09', 'MobilePay'), post('udgift', 120.5, 'k1', '2026-10-07')]).split('\r\n');
   assert.equal(linjer[1], '07-10-2026;;;A;Udgift;;;120,50;;');
   assert.equal(linjer[3], '09-10-2026;;;A;Betaling;;;-900,00;;MobilePay');
+  const medMoms = toCSV([], [k('k1', 'A')], [], [{ ...post('udgift', 125, 'k1', '2026-10-07'), moms: 25 }]).split('\r\n');
+  assert.equal(medMoms[1], '07-10-2026;;;A;Udgift;;;125,00;25,00;');
+});
+
+test('kvitteringNote giver butik og varer med pris', () => {
+  assert.equal(kvitteringNote({ butik: 'Netto', varer: [{ navn: 'Mælk', beloeb: 12.5 }, { navn: 'Pose', beloeb: 0 }] }), 'Netto: Mælk 12,50, Pose');
+  assert.equal(kvitteringNote({ butik: '', varer: [] }), '');
 });
 
 test('validateBackup giver tomme poster for gammel backup og afviser ugyldige poster', () => {
@@ -497,7 +504,7 @@ test('validateBackup giver tomme poster for gammel backup og afviser ugyldige po
   assert.deepEqual(validateBackup(base).data.poster, []);
   assert.equal(validateBackup({ ...base, poster: [post('udgift', 10)] }).ok, true);
   assert.equal(validateBackup({ ...base, poster: [{ ...post('udgift', 10), bilag: true }] }).ok, true);
-  for (const p of [post('udgift', 0), post('gave', 10), { ...post('udgift', 10), dato: '8/10' }, { ...post('udgift', 10), bilag: 'ja' }]) {
+  for (const p of [post('udgift', 0), post('gave', 10), { ...post('udgift', 10), dato: '8/10' }, { ...post('udgift', 10), bilag: 'ja' }, { ...post('udgift', 10), moms: 11 }]) {
     assert.equal(validateBackup({ ...base, poster: [p] }).ok, false, JSON.stringify(p));
   }
 });

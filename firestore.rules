@@ -83,7 +83,7 @@ service cloud.firestore {
     // ekstra er de felter ud over de faste, der er tilladt (i teams: person og godkendelse).
     function gyldigPost(ekstra) {
       let d = request.resource.data;
-      return felter(['kundeId', 'type', 'dato', 'beloeb', 'note'], ['kundeId', 'type', 'dato', 'beloeb', 'note', 'bilag'].concat(ekstra))
+      return felter(['kundeId', 'type', 'dato', 'beloeb', 'note'], ['kundeId', 'type', 'dato', 'beloeb', 'note', 'bilag', 'moms'].concat(ekstra))
         && d.kundeId is string
         && d.type in ['udgift', 'braendstof', 'kontant', 'betaling']
         && d.dato is string
@@ -91,7 +91,8 @@ service cloud.firestore {
         && d.beloeb is number
         && d.beloeb > 0
         && d.note is string
-        && (!('bilag' in d) || d.bilag is bool);
+        && (!('bilag' in d) || d.bilag is bool)
+        && (!('moms' in d) || (d.moms is number && d.moms >= 0 && d.moms <= d.beloeb));
     }
 
     // Et billede (fx en kvittering) på posten med samme id, som JPEG-data-URL.

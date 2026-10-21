@@ -1,8 +1,9 @@
 // Push-worker: gemmer Web Push-abonnementer pr. bruger og sender beskeder til
 // teammedlemmer om registreringer, der venter på dem. Afsenderen er altid
 // uid'en fra det verificerede token, og teksten laves her, så et medlem ikke
-// kan sende fri tekst.
+// kan sende fri tekst. Læser også kvitteringer for indloggede brugere.
 import { lavVerificer } from './token.js';
+import { lavLaesKvittering, KvitteringFejl } from './kvittering.js';
 import { lavHentTeam } from './team.js';
 import { lavSendPush } from './send.js';
 
@@ -20,7 +21,10 @@ function svar(status, krop) {
   });
 }
 
-const RUTER = { 'POST /abonner': abonner, 'DELETE /abonner': afmeld, 'POST /send': send };
+const RUTER = { 'POST /abonner': abonner, 'DELETE /abonner': afmeld, 'POST /send': send, 'POST /kvittering': kvittering };
+
+// Appen gemmer billeder under 900.000 tegn; lidt luft til andre data-URL'er.
+const MAKS_BILLEDE = 1_200_000;
 
 const TEKSTER = {
   afventer: (afsender, antal) => `${afsender} har registreret ${antal} til dig. Tryk for at godkende.`,
@@ -102,7 +106,20 @@ async function send({ kv, hentTeam, sendPush, bruger, token, krop }) {
   return svar(200, { sendt, fjernet: doede.size });
 }
 
-export function lavHandler({ verificer, hentTeam, kv, sendPush }) {
+// Billedet kommer som data-URL, som appen også gemmer det.
+async function kvittering({ laesKvittering, krop }) {
+  const m = typeof krop.billede === 'string' && krop.billede.length <= MAKS_BILLEDE
+    && /^data:(image\/(?:jpeg|png|webp|heic|heif));base64,([A-Za-z0-9+/=]+)$/.exec(krop.billede);
+  if (!m) return svar(400, { fejl: 'ugyldigt billede' });
+  try {
+    return svar(200, await laesKvittering(m[1], m[2]));
+  } catch (e) {
+    if (e instanceof KvitteringFejl) return svar(e.status, { fejl: e.message });
+    throw e;
+  }
+}
+
+export function lavHandler({ verificer, hentTeam, kv, sendPush, laesKvittering }) {
   return async function handler(request) {
     if (request.method === 'OPTIONS') return svar(204);
     const rute = RUTER[`${request.method} ${new URL(request.url).pathname}`];
@@ -125,7 +142,7 @@ export function lavHandler({ verificer, hentTeam, kv, sendPush }) {
     }
     if (!krop || typeof krop !== 'object') return svar(400, { fejl: 'ugyldig JSON' });
 
-    return rute({ kv, hentTeam, sendPush, bruger, token, krop });
+    return rute({ kv, hentTeam, sendPush, laesKvittering, bruger, token, krop });
   };
 }
 
@@ -143,6 +160,7 @@ export default {
         privateKey: env.VAPID_PRIVATE,
         subject: env.VAPID_SUBJECT,
       }),
+      laesKvittering: lavLaesKvittering({ noegle: env.GEMINI_API_KEY, model: env.GEMINI_MODEL }),
     });
     return handler(request);
   },

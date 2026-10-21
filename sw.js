@@ -19,6 +19,7 @@ const FILER = [
   'registrering.js',
   'post.js',
   'billede.js',
+  'kvittering.js',
   'team.js',
   'teamark.js',
   'tid.js',

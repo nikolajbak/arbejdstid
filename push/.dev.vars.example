@@ -2,3 +2,4 @@ FIREBASE_PROJECT=demo-arbejdstid
 FIRESTORE_EMULATOR=http://127.0.0.1:8080
 VAPID_PRIVATE=
 VAPID_SUBJECT=mailto:nikolajnbak@icloud.com
+GEMINI_API_KEY=

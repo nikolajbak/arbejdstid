@@ -21,6 +21,13 @@ få et overblik og en CSV-fil til fakturering.
   billedet gøres mindre, før det gemmes, og en clips i listen viser, at
   posten har et billede. Billeder følger med, når kunder flyttes til et team,
   men kommer ikke med i backuppen.
+- **Kvitteringer læses af sig selv:** når et nyt billede lægges på en
+  udgift, sendes det til Gemini, der læser butik, dato, beløb, moms og
+  varer. Felterne udfyldes, og købes der brændstof, skifter posten til
+  Brændstof. Felter, man selv har rettet, røres ikke, og på en gemt post
+  udfyldes kun tomme felter. **Læs kvittering** læser billedet igen. Momsen
+  gemmes i feltet *Heraf moms* og kommer med i CSV-eksporten, så posten er
+  klar til bogføring. Tjek tallene, før du gemmer.
 - **Afrunding:** hver registrering tæller mindst 15 minutter og rundes op til
   nærmeste kvarter, både i tid og beløb. Start og slut gemmes præcist, så
   afrundingen gælder også gamle registreringer.
@@ -127,10 +134,19 @@ køres i `push/`.
    i `PUSH_URL` i `push-config.js`. Push derefter appen. Er `PUSH_URL` tom,
    gemmes beskederne bare i køen på telefonen.
 
+**Kvitteringslæsning (gratis):** lav en API-nøgle på
+https://aistudio.google.com/apikey uden at slå fakturering til; så bruges
+Geminis gratisniveau, der har et loft over kald pr. minut og pr. dag, men
+aldrig koster noget. Læg den i workeren med `npx wrangler secret put
+GEMINI_API_KEY` og kør `npx wrangler deploy`. Modellen står i `GEMINI_MODEL`
+i `push/wrangler.toml`. På gratisniveauet må Google bruge billederne til at
+forbedre sine modeller. Uden nøgle virker alt andet; appen siger bare, at
+kvitteringen ikke kunne læses. Momsfeltet kræver, at reglerne udgives igen.
+
 På iPhone virker notifikationer kun, når appen er åbnet fra hjemmeskærmen.
 
 **Lokalt:** kopiér `push/.dev.vars.example` til `push/.dev.vars`, og udfyld
-`VAPID_PRIVATE`. Start emulatorerne, og kør `npx wrangler dev` i `push/`.
+`VAPID_PRIVATE` (og evt. `GEMINI_API_KEY`). Start emulatorerne, og kør `npx wrangler dev` i `push/`.
 Appen på localhost bruger så workeren på http://127.0.0.1:8787.
 `npm run test:push` tester workeren.
 

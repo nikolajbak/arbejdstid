@@ -163,6 +163,9 @@ test('poster valideres', async () => {
   await assertFails(setDoc(doc(admin(), 'brugere/ven/poster/p3'), p));
   await assertSucceeds(setDoc(doc(ven(), 'brugere/ven/poster/p4'), { ...p, bilag: true }));
   await assertFails(setDoc(doc(ven(), 'brugere/ven/poster/p5'), { ...p, bilag: 'ja' }));
+  await assertSucceeds(setDoc(doc(ven(), 'brugere/ven/poster/p6'), { ...p, moms: p.beloeb / 5 }));
+  await assertFails(setDoc(doc(ven(), 'brugere/ven/poster/p7'), { ...p, moms: p.beloeb + 1 }));
+  await assertFails(setDoc(doc(ven(), 'brugere/ven/poster/p8'), { ...p, moms: '20' }));
 });
 
 test('billeder på poster valideres', async () => {

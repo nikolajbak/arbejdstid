@@ -40,6 +40,9 @@ function opsaet({ status = {} } = {}) {
       kald.push({ abonnement, payload });
       return { status: status[abonnement.endpoint] ?? 201 };
     },
+    async laesKvittering(mime, base64) {
+      return { erKvittering: true, mime, base64 };
+    },
   });
   return { handler, lager, kald, hentTeamKald };
 }
@@ -246,4 +249,17 @@ test('ukendt rute giver 404', async () => {
   const { handler } = opsaet();
   const res = await handler(forespoergsel('/andet', {}));
   assert.equal(res.status, 404);
+});
+
+test('kvittering sender billedet videre og afviser andet end billeder', async () => {
+  const { handler } = opsaet();
+  const ok = await handler(forespoergsel('/kvittering', { billede: 'data:image/jpeg;base64,QUJD' }));
+  assert.equal(ok.status, 200);
+  assert.deepEqual(await ok.json(), { erKvittering: true, mime: 'image/jpeg', base64: 'QUJD' });
+  for (const billede of [undefined, 'QUJD', 'data:text/html;base64,QUJD', 'data:image/jpeg;base64,' + 'A'.repeat(1_300_000)]) {
+    const r = await handler(forespoergsel('/kvittering', { billede }));
+    assert.equal(r.status, 400, String(billede).slice(0, 30));
+  }
+  const uden = await handler(forespoergsel('/kvittering', { billede: 'data:image/jpeg;base64,QUJD' }, { token: null }));
+  assert.equal(uden.status, 401);
 });
