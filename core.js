@@ -447,7 +447,8 @@ const gyldigReg = (r) => r && erTekst(r.id) && erTekst(r.kundeId) && erTekst(r.o
   && erDato(r.start) && erDato(r.slut) && new Date(r.slut) > new Date(r.start)
   && erTal(r.timepris) && erValgfriTekst(r.note);
 const gyldigPost = (p) => p && erTekst(p.id) && erTekst(p.kundeId) && p.type in POST_TYPER
-  && erTekst(p.dato) && /^\d{4}-\d{2}-\d{2}$/.test(p.dato) && erTal(p.beloeb) && p.beloeb > 0 && erValgfriTekst(p.note);
+  && erTekst(p.dato) && /^\d{4}-\d{2}-\d{2}$/.test(p.dato) && erTal(p.beloeb) && p.beloeb > 0 && erValgfriTekst(p.note)
+  && (p.bilag == null || typeof p.bilag === 'boolean');
 const gyldigtUr = (u) => u == null
   || (erTekst(u.kundeId) && erTekst(u.opgavetypeId) && erDato(u.start) && erValgfriTekst(u.note));
 

@@ -155,6 +155,19 @@ test('poster valideres', async () => {
     ['manglende note', { kundeId: 'k1', type: 'udgift', dato: '2026-10-08', beloeb: 1 }],
   ]) await assertFails(setDoc(doc(ven(), 'brugere/ven/poster/p2'), daarlig), navn);
   await assertFails(setDoc(doc(admin(), 'brugere/ven/poster/p3'), p));
+  await assertSucceeds(setDoc(doc(ven(), 'brugere/ven/poster/p4'), { ...p, bilag: true }));
+  await assertFails(setDoc(doc(ven(), 'brugere/ven/poster/p5'), { ...p, bilag: 'ja' }));
+});
+
+test('billeder på poster valideres', async () => {
+  const b = { billede: 'data:image/jpeg;base64,AAAA' };
+  await assertSucceeds(setDoc(doc(ven(), 'brugere/ven/bilag/p1'), b));
+  await assertSucceeds(getDoc(doc(ven(), 'brugere/ven/bilag/p1')));
+  await assertFails(getDoc(doc(admin(), 'brugere/ven/bilag/p1')));
+  await assertFails(setDoc(doc(ven(), 'brugere/ven/bilag/p2'), { billede: 'x'.repeat(1000000) }));
+  await assertFails(setDoc(doc(ven(), 'brugere/ven/bilag/p3'), { ...b, andet: 1 }));
+  await assertFails(setDoc(doc(ven(), 'brugere/ven/bilag/p4'), { billede: 1 }));
+  await assertSucceeds(deleteDoc(doc(ven(), 'brugere/ven/bilag/p1')));
 });
 
 // --- Teams -----------------------------------------------------------------------
@@ -221,6 +234,9 @@ test('registrering i et team kræver person, der er medlem', async () => {
   await assertFails(setDoc(doc(ven(), 'teams/t1/registreringer/r2'), reg));
   await assertFails(setDoc(doc(ven(), 'teams/t1/registreringer/r3'), tReg('admin')));
   await assertSucceeds(setDoc(doc(ven(), 'teams/t1/poster/p1'), { kundeId: 'k1', type: 'udgift', dato: '2026-10-08', beloeb: 10, note: '' }));
+  await assertSucceeds(setDoc(doc(ven(), 'teams/t1/bilag/p1'), { billede: 'data:image/jpeg;base64,AAAA' }));
+  await assertSucceeds(getDoc(doc(tre(), 'teams/t1/bilag/p1')));
+  await assertFails(getDoc(doc(admin(), 'teams/t1/bilag/p1')));
   await assertFails(setDoc(doc(ven(), 'teams/t1/kunder/k3'), { ...kunde, timepris: -1 }));
 });
 

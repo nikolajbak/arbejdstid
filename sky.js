@@ -1,4 +1,4 @@
-import { doc, collection, onSnapshot, writeBatch } from 'https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js';
+import { doc, collection, onSnapshot, writeBatch, getDoc, setDoc, deleteDoc } from 'https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js';
 import { db } from './firebase.js';
 import { forskel } from './core.js';
 
@@ -86,5 +86,12 @@ export function startSky({ data: rod, person }, { data, status, fejl }) {
     }
   }
 
-  return { gem, stop: () => lyttere.forEach((stop) => stop()) };
+  // Billeder på poster ligger i deres egen samling med postens id, så de kun
+  // hentes, når posten åbnes. Skrivninger afventes ikke, så det virker uden net.
+  const bilag = (id) => doc(rod, 'bilag', id);
+  const hentBilag = async (id) => (await getDoc(bilag(id))).data()?.billede ?? null;
+  const gemBilag = (id, billede) => setDoc(bilag(id), { billede }).catch((e) => fejl(e, 'skriv'));
+  const sletBilag = (id) => deleteDoc(bilag(id)).catch((e) => fejl(e, 'skriv'));
+
+  return { gem, hentBilag, gemBilag, sletBilag, stop: () => lyttere.forEach((stop) => stop()) };
 }

@@ -73,6 +73,19 @@ async function skriv(rod, ops) {
   }
 }
 
+// Kopierer billederne på de flyttede poster til teamet. Giver deres id'er, så de
+// kan slettes fra Mig, når posterne er fjernet derfra.
+async function kopierBilag(fra, til, poster) {
+  const ids = poster.filter((p) => p.bilag).map((p) => p.id);
+  for (const id of ids) {
+    const s = await getDocFromServer(doc(fra, 'bilag', id));
+    if (s.exists()) await setDoc(doc(til, 'bilag', id), s.data());
+  }
+  return ids;
+}
+
+const sletBilag = (rod, ids) => skriv(rod, ids.map((id) => ({ type: 'slet', samling: 'bilag', id })));
+
 // Flytter Mig's data ind i teamet. Teamet skrives først; Mig tømmes, når
 // serveren har bekræftet. Afbrydes det, ligger data begge steder, og en ny
 // kørsel giver ingen dubletter. Returnerer antallet af flyttede registreringer.
@@ -80,8 +93,10 @@ export async function flytData(mig, teamSted, uid) {
   const teamData = await hentData(teamSted.data, teamSted.person);
   const { tilstand, antal } = flytTilTeam(mig.data, teamData, uid);
   await skriv(teamSted.data, forskel(teamData, tilstand).filter((op) => op.samling));
+  const bilag = await kopierBilag(mig.sted.data, teamSted.data, mig.data.poster ?? []);
   const tom = { ...mig.data, kunder: [], opgavetyper: [], registreringer: [], poster: [] };
   await skriv(mig.sted.data, forskel(mig.data, tom).filter((op) => op.samling));
+  await sletBilag(mig.sted.data, bilag);
   return antal;
 }
 
@@ -91,6 +106,9 @@ export async function flytUdvalgt(mig, teamSted, uid, valg) {
   const teamData = await hentData(teamSted.data, teamSted.person);
   const r = flytUdvalgtTilTeam(mig.data, teamData, uid, valg);
   await skriv(teamSted.data, forskel(teamData, r.team).filter((op) => op.samling));
+  const flyttet = (mig.data.poster ?? []).filter((p) => valg.kunder.includes(p.kundeId));
+  const bilag = await kopierBilag(mig.sted.data, teamSted.data, flyttet);
   await skriv(mig.sted.data, forskel(mig.data, r.mig).filter((op) => op.samling));
+  await sletBilag(mig.sted.data, bilag);
   return r.antal;
 }

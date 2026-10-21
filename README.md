@@ -16,7 +16,11 @@ få et overblik og en CSV-fil til fakturering.
 - **Penge på en kunde:** **+ Tilføj** → Udgift, Brændstof, Kontantudlæg eller
   Betaling. Udgifter og brændstof lægges til det, kunden skylder; kontanter
   og betalinger trækkes fra. Kontanter til materialer tastes som et
-  kontantudlæg og en udgift, så de går i nul.
+  kontantudlæg og en udgift, så de går i nul. Tryk **Tilføj billede** på
+  posten for at tage et billede af kvitteringen eller vælge et fra Fotos;
+  billedet gøres mindre, før det gemmes, og en clips i listen viser, at
+  posten har et billede. Billeder følger med, når kunder flyttes til et team,
+  men kommer ikke med i backuppen.
 - **Afrunding:** hver registrering tæller mindst 15 minutter og rundes op til
   nærmeste kvarter, både i tid og beløb. Start og slut gemmes præcist, så
   afrundingen gælder også gamle registreringer.
@@ -167,7 +171,7 @@ virker uden net.
 kunder har nu en farve, og registreringer kan være uden opgave. Version 4
 kræver det også: fjernede genveje gemmes på profilen. Version 6 kræver det
 også: poster (udgifter, brændstof, kontantudlæg og betalinger). Version 7
-kræver det også: teams. Godkendelse kræver det også. Udgives reglerne ikke,
+kræver det også: teams. Godkendelse og billeder på poster kræver det også. Udgives reglerne ikke,
 afvises de nye ændringer.
 
 ## Installér på iPhone
