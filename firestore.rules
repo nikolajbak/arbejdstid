@@ -81,14 +81,22 @@ service cloud.firestore {
     // Udgifter, brændstof, kontantudlæg og betalinger på en kunde.
     function gyldigPost() {
       let d = request.resource.data;
-      return felter(['kundeId', 'type', 'dato', 'beloeb', 'note'], ['kundeId', 'type', 'dato', 'beloeb', 'note'])
+      return felter(['kundeId', 'type', 'dato', 'beloeb', 'note'], ['kundeId', 'type', 'dato', 'beloeb', 'note', 'bilag'])
         && d.kundeId is string
         && d.type in ['udgift', 'braendstof', 'kontant', 'betaling']
         && d.dato is string
         && d.dato.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
         && d.beloeb is number
         && d.beloeb > 0
-        && d.note is string;
+        && d.note is string
+        && (!('bilag' in d) || d.bilag is bool);
+    }
+
+    // Et billede (fx en kvittering) på posten med samme id, som JPEG-data-URL.
+    function gyldigtBilag() {
+      return felter(['billede'], ['billede'])
+        && request.resource.data.billede is string
+        && request.resource.data.billede.size() < 1000000;
     }
 
     match /godkendte/{email} {
@@ -150,6 +158,11 @@ service cloud.firestore {
       match /poster/{id} {
         allow read, delete: if eget();
         allow create, update: if eget() && gyldigPost();
+      }
+
+      match /bilag/{id} {
+        allow read, delete: if eget();
+        allow create, update: if eget() && gyldigtBilag();
       }
     }
 
@@ -232,6 +245,11 @@ service cloud.firestore {
       match /poster/{id} {
         allow read, delete: if medlem();
         allow create, update: if medlem() && gyldigPost();
+      }
+
+      match /bilag/{id} {
+        allow read, delete: if medlem();
+        allow create, update: if medlem() && gyldigtBilag();
       }
     }
   }
