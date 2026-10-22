@@ -636,6 +636,111 @@ export function soegBrugere(brugere, tekst, udelad = [], max = 8) {
     .map((x) => x.b);
 }
 
+// --- Profil -----------------------------------------------------------------------
+
+// Færdigheder vælges fra en fast liste i kategorier, så de kan søges, foreslås og
+// sammenlignes. Ingen fritekst: stavemåder og dubletter forsvinder.
+export const FAERDIGHEDER = {
+  'Håndværk': ['Tømrer', 'Snedker', 'Murer', 'Maler', 'Elektriker', 'VVS', 'Blikkenslager', 'Gulvlægger',
+    'Tagdækker', 'Smed', 'Glarmester', 'Flisemontør', 'Stukkatør', 'Køkkenmontage', 'Vinduesmontage'],
+  'Byg og anlæg': ['Anlægsgartner', 'Brolægger', 'Betonarbejde', 'Jord og kloak', 'Nedrivning', 'Stilladsmontage',
+    'Isolering', 'Facaderenovering', 'Badeværelsesrenovering', 'Tegningslæsning', 'Opmåling', 'Byggeledelse'],
+  'Service': ['Rengøring', 'Vinduespudsning', 'Havearbejde', 'Snerydning', 'Flytning', 'Ejendomsservice',
+    'Pedelarbejde', 'Montering af møbler', 'Kundeservice'],
+  'Kontor og økonomi': ['Bogføring', 'Fakturering', 'Lønadministration', 'Budgettering', 'Projektledelse',
+    'Tilbudsgivning', 'Indkøb', 'Excel', 'Salg', 'Administration'],
+  'IT og digitalt': ['Webudvikling', 'Programmering', 'IT-support', 'Netværk', 'Grafisk design', 'UX-design',
+    'Fotografering', 'Video', 'Sociale medier', 'Marketing', 'Tekstforfatning', 'SEO'],
+  'Transport og maskiner': ['Kørekort B', 'Kørekort BE', 'Kørekort C', 'Kørekort CE', 'Trucklicens', 'Kranførerbevis',
+    'Gravemaskine', 'Minilæsser', 'Liftcertifikat', 'Varelevering'],
+  'Certifikater og sikkerhed': ['Førstehjælp', 'Arbejde i højden', 'Asbestkursus', 'Sikkerhedsrepræsentant',
+    'Varmt arbejde', 'Vagtcertifikat', 'Hygiejnebevis', 'Autorisation (el)', 'Autorisation (VVS)'],
+  'Sprog': ['Dansk', 'Engelsk', 'Tysk', 'Svensk', 'Norsk', 'Polsk', 'Rumænsk', 'Litauisk', 'Ukrainsk', 'Arabisk',
+    'Tyrkisk', 'Spansk', 'Fransk'],
+};
+export const MAKS_FAERDIGHEDER = 20;
+
+const faerdighedKategori = new Map(Object.entries(FAERDIGHEDER).flatMap(([k, liste]) => liste.map((f) => [f, k])));
+export const kendtFaerdighed = (f) => faerdighedKategori.has(f);
+
+// Rangerer navne efter søgeteksten som soegBrugere: begyndelse, så ordbegyndelse, så indhold.
+function rangerEfterSoegning(navne, tekst) {
+  const ord = tilSoeg(tekst).split(/\s+/).filter(Boolean);
+  if (!ord.length) return [];
+  return navne
+    .map((n) => {
+      const s = tilSoeg(n);
+      if (!ord.every((o) => s.includes(o))) return null;
+      const p = s.startsWith(ord[0]) ? 2 : s.split(/[\s()-]+/).some((d) => d.startsWith(ord[0])) ? 1 : 0;
+      return { n, p };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.p - a.p || a.n.localeCompare(b.n, 'da'))
+    .map((x) => x.n);
+}
+
+// Færdigheder, der passer til søgningen, uden dem, der allerede er valgt.
+export function soegFaerdigheder(tekst, valgte = [], max = 12) {
+  const valgt = new Set(valgte);
+  return rangerEfterSoegning([...faerdighedKategori.keys()].filter((f) => !valgt.has(f)), tekst).slice(0, max);
+}
+
+// Forslag ud fra de valgte og de andre brugeres færdigheder: dem, der ofte står sammen
+// med de valgte, vejer mest; derefter samme kategori og det, der er populært.
+export function foreslaaFaerdigheder(valgte, andre = [], max = 10) {
+  const valgt = new Set(valgte);
+  const kategorier = new Set(valgte.map((f) => faerdighedKategori.get(f)));
+  const point = new Map();
+  const giv = (f, p) => { if (kendtFaerdighed(f) && !valgt.has(f)) point.set(f, (point.get(f) ?? 0) + p); };
+  for (const liste of andre) {
+    const faelles = liste.filter((f) => valgt.has(f)).length;
+    for (const f of liste) giv(f, 1 + 3 * faelles);
+  }
+  for (const [f, k] of faerdighedKategori) if (kategorier.has(k)) giv(f, 2);
+  if (!point.size) for (const liste of Object.values(FAERDIGHEDER)) giv(liste[0], 1);
+  return [...point]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'da'))
+    .slice(0, max)
+    .map(([f]) => f);
+}
+
+const MAANEDER = ['januar', 'februar', 'marts', 'april', 'maj', 'juni', 'juli', 'august', 'september', 'oktober', 'november', 'december'];
+
+// "12. marts 1990 · 36 år" ud fra "1990-03-12".
+export function foedselsdagTekst(dato, nu = new Date()) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dato ?? '');
+  if (!m) return '';
+  const [aar, md, dag] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const alder = nu.getFullYear() - aar - (nu.getMonth() + 1 < md || (nu.getMonth() + 1 === md && nu.getDate() < dag) ? 1 : 0);
+  return `${dag}. ${MAANEDER[md - 1]} ${aar} · ${alder} år`;
+}
+
+// Tal til profilen for personens godkendte registreringer i arbejdsstedet (Mig har ingen person).
+// Indtjeningen er uden moms. Måned og år følger lokal tid.
+export function profilTal(registreringer, uid, nu = new Date()) {
+  const egne = registreringer.filter((x) => !x.afventer && (!x.person || x.person === uid));
+  const tom = () => ({ ms: 0, kr: 0 });
+  const tal = { iAlt: tom(), maaned: tom(), aar: tom(), antal: egne.length, kunder: 0, topKundeId: null, snitTimepris: 0, foerste: null };
+  const prKunde = new Map();
+  for (const x of egne) {
+    const ms = durationMs(x);
+    const kr = amountOf(x);
+    const d = new Date(x.start);
+    const laeg = (t) => { t.ms += ms; t.kr += kr; };
+    laeg(tal.iAlt);
+    if (d.getFullYear() === nu.getFullYear()) {
+      laeg(tal.aar);
+      if (d.getMonth() === nu.getMonth()) laeg(tal.maaned);
+    }
+    prKunde.set(x.kundeId, (prKunde.get(x.kundeId) ?? 0) + ms);
+    if (!tal.foerste || x.start < tal.foerste) tal.foerste = x.start;
+  }
+  tal.kunder = prKunde.size;
+  tal.topKundeId = [...prKunde].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+  tal.snitTimepris = tal.iAlt.ms ? tal.iAlt.kr / (tal.iAlt.ms / TIME_MS) : 0;
+  return tal;
+}
+
 // Invitationer, brugeren ikke har fået vist på denne enhed, og de id'er, der
 // skal huskes som sete. Kun nuværende invitationer huskes, så en ny invitation
 // til et team, man har forladt, vises igen.

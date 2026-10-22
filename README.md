@@ -31,6 +31,13 @@ få et overblik og en CSV-fil til fakturering.
 - **Afrunding:** hver registrering tæller mindst 15 minutter og rundes op til
   nærmeste kvarter, både i tid og beløb. Start og slut gemmes præcist, så
   afrundingen gælder også gamle registreringer.
+- **Profil:** øverst i Indstillinger. Her står dit navn, din e-mail og dine
+  teams, og du kan tilføje et billede, din fødselsdag og dine færdigheder.
+  Færdighederne vælges fra en fast liste: søg, tryk på forslag eller bladr i
+  kategorierne. Forslagene bygger på det, du har valgt, og hvad andre har valgt.
+  Profilen viser også din tid og indtjening (uden moms) i det åbne
+  arbejdssted. Tryk på et medlem under Indstillinger → Team for at se
+  medlemmets profil. Tid og indtjening ser kun du selv.
 - **Teams:** tryk på **Mig ▾** øverst for at skifte mellem dine egne data og
   dine teams, se invitationer eller oprette et team. I et team deler I kunder,
   opgaver, poster og saldo, og alle ser alles tid. Under **Hvem**, når du

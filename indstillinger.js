@@ -2,6 +2,7 @@
 
 import { teamSektion } from './teamark.js';
 import { status as pushStatus, slaaTil, slaaFra } from './push.js';
+import { profilKort } from './profil.js';
 import { FARVER, dayKey, farveFor, formatKr, invitationsMail, naesteFarve, normaliserEmail, parseNumber, validateBackup } from './core.js';
 import { newId } from './store.js';
 import { logUd, inviter, fjernAdgang, saetAdmin, appAdresse } from './konto.js';
@@ -293,6 +294,7 @@ export function visIndstillinger() {
   const kunder = aktive(t.state.kunder).sort(efterNavn);
   const typer = aktive(t.state.opgavetyper).sort(efterNavn);
   return [
+    profilKort(),
     h('div', { class: 'sektion-top' }, h('h2', {}, 'Kunder'),
       h('button', { class: 'tekstknap', onclick: () => redigerKunde() }, ikon('plus'), 'Ny kunde')),
     kunder.length

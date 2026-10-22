@@ -351,3 +351,17 @@ test('katalog: godkendte kan søge, hver skriver kun sit eget med egen e-mail', 
   await assertFails(setDoc(doc(ven(), 'katalog/ven'), { navn: 'Ven', email: 'ven@x.dk', admin: true }));
   await assertFails(getDocs(collection(som('ude', 'ude@x.dk'), 'katalog')));
 });
+
+test('profil: fødselsdag, færdigheder og billede valideres', async () => {
+  const p = { navn: 'Ven', email: 'ven@x.dk' };
+  await assertSucceeds(setDoc(doc(ven(), 'katalog/ven'), { ...p, foedselsdag: '1990-03-12', faerdigheder: ['Tømrer'] }));
+  await assertSucceeds(setDoc(doc(ven(), 'katalog/ven'), { ...p, foedselsdag: null }));
+  await assertFails(setDoc(doc(ven(), 'katalog/ven'), { ...p, foedselsdag: '12/3/1990' }));
+  await assertFails(setDoc(doc(ven(), 'katalog/ven'), { ...p, faerdigheder: Array(21).fill('Tømrer') }));
+  await assertSucceeds(setDoc(doc(ven(), 'profilbilleder/ven'), { billede: 'data:image/jpeg;base64,AAAA' }));
+  await assertSucceeds(getDoc(doc(admin(), 'profilbilleder/ven')));
+  await assertFails(setDoc(doc(ven(), 'profilbilleder/admin'), { billede: 'data:image/jpeg;base64,AAAA' }));
+  await assertFails(setDoc(doc(ven(), 'profilbilleder/ven'), { billede: 'data:text/html;base64,AAAA' }));
+  await assertFails(setDoc(doc(ven(), 'profilbilleder/ven'), { billede: 'data:image/jpeg;base64,' + 'A'.repeat(200000) }));
+  await assertSucceeds(deleteDoc(doc(ven(), 'profilbilleder/ven')));
+});

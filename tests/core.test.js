@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  nyeInvitationer, soegBrugere,
+  nyeInvitationer, soegBrugere, soegFaerdigheder, foreslaaFaerdigheder, foedselsdagTekst, profilTal,
   durationMs, amountOf, formatDuration, formatKr, parseHours, validateEntry,
 } from '../core.js';
 
@@ -874,4 +874,52 @@ test('soegBrugere: filtrerer mens der skrives, udelader og sorterer', () => {
   assert.deepEqual(navne(soegBrugere(brugere, '', ['bo@firma.dk'])), ['Anders Holm', 'Mette Andersen', 'Søren']);
   assert.deepEqual(soegBrugere(brugere, 'xyz'), []);
   assert.equal(soegBrugere(brugere, '', [], 2).length, 2);
+});
+
+test('soegFaerdigheder: søger uden at vise valgte, begyndelse først', () => {
+  assert.deepEqual(soegFaerdigheder('tøm'), ['Tømrer']);
+  assert.deepEqual(soegFaerdigheder('tomrer'), ['Tømrer']);
+  assert.deepEqual(soegFaerdigheder('kørekort c'), ['Kørekort C', 'Kørekort CE']);
+  assert.deepEqual(soegFaerdigheder('kørekort c', ['Kørekort C']), ['Kørekort CE']);
+  assert.deepEqual(soegFaerdigheder('vvs'), ['VVS', 'Autorisation (VVS)']);
+  assert.deepEqual(soegFaerdigheder(''), []);
+});
+
+test('foreslaaFaerdigheder: det, der står sammen med de valgte, kommer først', () => {
+  const andre = [['Tømrer', 'Arbejde i højden'], ['Tømrer', 'Arbejde i højden'], ['Excel'], ['Excel'], ['Excel']];
+  const f = foreslaaFaerdigheder(['Tømrer'], andre);
+  assert.equal(f[0], 'Arbejde i højden');
+  assert.ok(!f.includes('Tømrer'));
+  assert.equal(f[1], 'Excel');
+  assert.ok(f.includes('Blikkenslager'));
+  assert.equal(foreslaaFaerdigheder([], [])[0], 'Anlægsgartner');
+  assert.equal(foreslaaFaerdigheder([], andre)[0], 'Excel');
+  assert.ok(!foreslaaFaerdigheder([], [['Fritekst']]).includes('Fritekst'));
+});
+
+test('foedselsdagTekst: dato og alder', () => {
+  assert.equal(foedselsdagTekst('1990-03-12', new Date(2026, 2, 11)), '12. marts 1990 · 35 år');
+  assert.equal(foedselsdagTekst('1990-03-12', new Date(2026, 2, 12)), '12. marts 1990 · 36 år');
+  assert.equal(foedselsdagTekst(''), '');
+});
+
+test('profilTal: egne godkendte registreringer i alt, måned og år', () => {
+  const r = (start, slut, extra = {}) => ({ kundeId: 'k1', start, slut, timepris: 400, ...extra });
+  const regs = [
+    r('2026-10-05T08:00:00', '2026-10-05T10:00:00', { person: 'a' }),
+    r('2026-03-01T08:00:00', '2026-03-01T09:00:00', { person: 'a', kundeId: 'k2' }),
+    r('2025-12-01T08:00:00', '2025-12-01T09:00:00', { person: 'a' }),
+    r('2026-10-06T08:00:00', '2026-10-06T09:00:00', { person: 'b' }),
+    r('2026-10-07T08:00:00', '2026-10-07T09:00:00', { person: 'a', afventer: true }),
+  ];
+  const t = profilTal(regs, 'a', new Date(2026, 9, 22));
+  assert.deepEqual(t.iAlt, { ms: 4 * 3600000, kr: 1600 });
+  assert.deepEqual(t.aar, { ms: 3 * 3600000, kr: 1200 });
+  assert.deepEqual(t.maaned, { ms: 2 * 3600000, kr: 800 });
+  assert.equal(t.antal, 3);
+  assert.equal(t.kunder, 2);
+  assert.equal(t.topKundeId, 'k1');
+  assert.equal(t.snitTimepris, 400);
+  assert.equal(t.foerste, '2025-12-01T08:00:00');
+  assert.equal(profilTal([], 'a').snitTimepris, 0);
 });

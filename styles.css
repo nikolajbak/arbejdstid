@@ -529,3 +529,31 @@ h3.dag .tal { color: var(--sek); font-weight: 500; }
 .bilag-maerke { color: var(--sek); display: flex; }
 .bilag-maerke .ikon { width: 16px; height: 16px; }
 .bilag-stort { display: block; width: 100%; height: auto; border-radius: 12px; }
+
+/* --- Profil --------------------------------------------------------------------- */
+
+.avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--daempet);
+  color: var(--sek);
+  font-weight: 600;
+}
+.avatar.stor { width: 96px; height: 96px; font-size: 32px; }
+.profil-kort { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 16px; margin-bottom: 8px; text-align: left; font: inherit; color: inherit; }
+.profil { display: grid; gap: 12px; }
+.profil-top { display: grid; justify-items: center; gap: 6px; }
+.profil-billedknapper { display: flex; gap: 16px; }
+.profil .raekke input[type="date"] { width: auto; }
+.raekke.klikbar { cursor: pointer; }
+.tal-gitter { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tal-boks { display: grid; gap: 2px; padding: 12px 14px; border-radius: 14px; background: var(--flade); box-shadow: 0 0 0 1px var(--linje); }
+.tal-stor { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.kategori { border-top: 1px solid var(--linje); padding: 10px 4px; }
+.kategori summary { cursor: pointer; font-weight: 500; min-height: 32px; }
+.kategori .chips { margin-top: 8px; }

@@ -1,7 +1,7 @@
 // Teams i databasen: find, opret, invitér, bliv medlem, meld ud og flyt data.
 
 import {
-  doc, collection, query, where, onSnapshot, setDoc, updateDoc, getDoc, getDocs, getDocsFromServer, getDocFromServer,
+  doc, collection, query, where, onSnapshot, setDoc, updateDoc, deleteDoc, getDoc, getDocs, getDocsFromServer, getDocFromServer,
   writeBatch, arrayUnion, arrayRemove, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js';
 import { db } from './firebase.js';
@@ -52,7 +52,18 @@ export const saetMitNavn = async (id, uid, navn) => {
 // Kataloget over brugere, så man kan finde og invitere hinanden på navn.
 // Hver bruger skriver kun sit eget: { navn, email }.
 export const saetKatalog = (uid, email, navn) =>
-  setDoc(doc(db, 'katalog', uid), { navn: String(navn).slice(0, 60), email: normaliserEmail(email) });
+  setDoc(doc(db, 'katalog', uid), { navn: String(navn).slice(0, 60), email: normaliserEmail(email) }, { merge: true });
+
+// Profilen er katalogets dokument (navn, e-mail, fødselsdag, færdigheder) plus billedet for sig.
+export async function hentProfil(uid) {
+  const [p, b] = await Promise.all([getDoc(doc(db, 'katalog', uid)), getDoc(doc(db, 'profilbilleder', uid)).catch(() => null)]);
+  return { uid, ...(p.exists() ? p.data() : {}), billede: b?.exists() ? b.data().billede : null };
+}
+
+export const gemProfil = (uid, felter) => setDoc(doc(db, 'katalog', uid), felter, { merge: true });
+
+export const gemBillede = (uid, billede) =>
+  (billede ? setDoc(doc(db, 'profilbilleder', uid), { billede }) : deleteDoc(doc(db, 'profilbilleder', uid)));
 
 // Første gang: navnet fra et team, man allerede har sat det i, ellers delen før @.
 export async function sikrKatalog(user, teams) {

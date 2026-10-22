@@ -4,6 +4,7 @@
 import { dayKey, farveFor, fejlTekst, invitationsMail, normaliserEmail, personNavn, soegBrugere } from './core.js';
 import { appAdresse } from './konto.js';
 import { meldInvitation } from './push.js';
+import { visProfil } from './profil.js';
 import { migSted, teamSted } from './sky.js';
 import {
   opretTeam, blivMedlem, inviter, traekTilbage, fjernMedlem, omdoeb, saetMitNavn, hentData, flytData, flytUdvalgt, hentKatalog,
@@ -337,14 +338,18 @@ export function teamSektion() {
       raekke('Dit navn i teamet', personNavn(team, uid), () => tekstArk('Dit navn', 'Navn i teamet', personNavn(team, uid), (v) => saetMitNavn(team.id, uid, v))),
     ),
     h('div', { class: 'ark-overskrift' }, h('h3', {}, 'Medlemmer')),
+    // Et tryk på et medlem viser profilen.
     h('div', { class: 'kort' }, medlemmer.map((m) => (m === uid
-      ? h('div', { class: 'raekke' }, h('span', { class: 'hoved' }, h('span', { class: 'titel' }, personNavn(team, m)), h('span', { class: 'under' }, 'Dig')))
-      : h('div', { class: 'raekke' },
-        h('span', { class: 'hoved' }, h('span', { class: 'titel' }, personNavn(team, m))),
+      ? h('div', { class: 'raekke klikbar', onclick: () => visProfil(m) }, h('span', { class: 'hoved' }, h('span', { class: 'titel' }, personNavn(team, m)), h('span', { class: 'under' }, 'Dig')), ikon('hoejre'))
+      : h('div', { class: 'raekke klikbar', onclick: () => visProfil(m) },
+        h('span', { class: 'hoved' }, h('span', { class: 'titel' }, personNavn(team, m)), h('span', { class: 'under' }, 'Se profil')),
         h('button', {
           type: 'button',
           class: 'tekstknap',
-          onclick: () => { if (confirm(`Fjern ${personNavn(team, m)} fra ${team.navn}? Registreringerne bliver i teamet.`)) proev(() => fjernMedlem(team.id, m))(); },
+          onclick: (e) => {
+            e.stopPropagation();
+            if (confirm(`Fjern ${personNavn(team, m)} fra ${team.navn}? Registreringerne bliver i teamet.`)) proev(() => fjernMedlem(team.id, m))();
+          },
         }, 'Fjern'))))),
     team.inviterede.length > 0 && [
       h('div', { class: 'ark-overskrift' }, h('h3', {}, 'Inviterede')),
