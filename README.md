@@ -32,9 +32,11 @@ få et overblik og en CSV-fil til fakturering.
   nærmeste kvarter, både i tid og beløb. Start og slut gemmes præcist, så
   afrundingen gælder også gamle registreringer.
 - **Profil:** øverst i Indstillinger. Her står dit navn, din e-mail og dine
-  teams, og du kan tilføje et billede, din fødselsdag og dine færdigheder.
-  Færdighederne vælges fra en fast liste: søg, tryk på forslag eller bladr i
-  kategorierne. Forslagene bygger på det, du har valgt, og hvad andre har valgt.
+  teams, og du kan tilføje din fødselsdag og dine færdigheder. Tryk på
+  billedet (eller initialerne) for at vælge et profilbillede.
+  Færdighederne vælges fra en liste: søg, tryk på forslag eller bladr i
+  kategorierne. Mangler en, skriv den i søgefeltet og tryk Tilføj. Forslagene
+  bygger på det, du har valgt, og hvad andre har valgt.
   Profilen viser også din tid og indtjening (uden moms) i det åbne
   arbejdssted. Tryk på et medlem under Indstillinger → Team for at se
   medlemmets profil. Tid og indtjening ser kun du selv.

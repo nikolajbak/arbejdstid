@@ -2,16 +2,17 @@
 // Ens egen kan redigeres; et andet medlems vises fra teamet uden tal.
 
 import {
-  FAERDIGHEDER, MAKS_FAERDIGHEDER, fejlTekst, foedselsdagTekst, foreslaaFaerdigheder, formatDuration, formatKr,
-  personNavn, profilTal, soegFaerdigheder,
+  FAERDIGHEDER, MAKS_FAERDIGHEDER, egenFaerdighed, fejlTekst, foedselsdagTekst, foreslaaFaerdigheder, formatDuration, formatKr,
+  kendtFaerdighed, personNavn, profilTal, soegFaerdigheder,
 } from './core.js';
 import { profilbillede } from './billede.js';
 import { gemBillede, gemProfil, hentKatalog, hentProfil, standardNavn } from './team.js';
 import { t, render } from './tilstand.js';
 import { h, aabnArk, lukArk, arkTop, besked, chip, felt, ikon } from './ui.js';
 
-// Den seneste kendte egen profil, så rækken i Indstillinger kan vise billede og navn.
-let egen = null;
+// Hentede profiler, så et ark kan åbne med det samme og opdateres bagefter.
+const profiler = new Map();
+const egen = () => profiler.get(t.bruger.uid);
 
 const initialer = (navn) => String(navn ?? '?').split(/\s+/).filter(Boolean).slice(0, 2).map((d) => d[0].toUpperCase()).join('');
 
@@ -26,19 +27,28 @@ const raekke = (titel, under, onclick) => h(onclick ? 'button' : 'div', { type: 
   h('span', { class: 'hoved' }, h('span', { class: 'under' }, titel), h('span', { class: 'titel' }, under)),
   onclick && ikon('hoejre'));
 
+// Et medlem, der ikke har åbnet appen siden profilerne kom, har kun navnet i teamet.
+async function hent(uid) {
+  const p = await hentProfil(uid);
+  const min = uid === t.bruger.uid;
+  if (!p.navn) p.navn = min ? standardNavn(t.bruger.email) : personNavn(t.team, uid);
+  if (!p.email && min) p.email = t.bruger.email;
+  profiler.set(uid, p);
+  return p;
+}
+
 // --- Rækken øverst i Indstillinger -------------------------------------------------
 
 export function profilKort() {
-  const tegn = () => h('button', { type: 'button', class: 'kort profil-kort', onclick: () => visProfil() },
-    avatar(egen ?? { navn: standardNavn(t.bruger.email) }),
+  const tegn = () => h('button', { type: 'button', class: 'kort raekke profil-kort', onclick: () => visProfil() },
+    avatar(egen() ?? { navn: standardNavn(t.bruger.email) }),
     h('span', { class: 'hoved' },
-      h('span', { class: 'titel' }, egen?.navn ?? standardNavn(t.bruger.email)),
+      h('span', { class: 'titel' }, egen()?.navn ?? standardNavn(t.bruger.email)),
       h('span', { class: 'under' }, 'Din profil')),
     ikon('hoejre'));
   let el = tegn();
-  if (!egen) {
-    hentProfil(t.bruger.uid).then((p) => {
-      egen = p;
+  if (!egen()) {
+    hent(t.bruger.uid).then(() => {
       const ny = tegn();
       el.replaceWith(ny);
       el = ny;
@@ -49,76 +59,104 @@ export function profilKort() {
 
 // --- Profilen ----------------------------------------------------------------------
 
-export function visProfil(uid = t.bruger.uid) {
+// Arket åbner først, når profilen er klar, så det glider op i fuld højde.
+export async function visProfil(uid = t.bruger.uid) {
   const min = uid === t.bruger.uid;
-  const indhold = h('div', { class: 'profil' }, h('p', { class: 'tom' }, 'Henter profil …'));
-  aabnArk(arkTop(min ? 'Din profil' : 'Profil'), indhold);
-  const hent = () => hentProfil(uid).then((p) => {
-    // Et medlem, der ikke har åbnet appen siden profilerne kom, har kun navnet i teamet.
-    if (!p.navn) p.navn = min ? standardNavn(t.bruger.email) : personNavn(t.team, uid);
-    if (!p.email && min) p.email = t.bruger.email;
-    if (min) {
-      egen = p;
-      render();
+  let p = profiler.get(uid);
+  const kendt = Boolean(p);
+  if (!kendt) {
+    try {
+      p = await hent(uid);
+    } catch (err) {
+      console.error(err);
+      return besked('Profilen kunne ikke hentes. Prøv igen med internet.');
     }
-    indhold.replaceChildren(...profilIndhold(p, min, hent).flat(Infinity).filter((x) => x instanceof Node));
-  }, (err) => {
-    console.error(err);
-    indhold.replaceChildren(h('p', { class: 'fejl' }, 'Profilen kunne ikke hentes. Prøv igen med internet.'));
-  });
-  hent();
+  }
+  const indhold = h('div', { class: 'profil' });
+  // Ændringer vises med det samme; rækken i Indstillinger følger med.
+  const opdater = (felter) => {
+    p = { ...p, ...felter };
+    profiler.set(uid, p);
+    if (min) render();
+    vis();
+  };
+  const vis = () => indhold.replaceChildren(...profilIndhold(p, min, opdater).flat(Infinity).filter((x) => x instanceof Node));
+  vis();
+  aabnArk(arkTop(min ? 'Din profil' : 'Profil'), indhold);
+  if (kendt) {
+    hent(uid).then((ny) => {
+      if (JSON.stringify(ny) === JSON.stringify(p) || indhold.contains(document.activeElement)) return;
+      p = ny;
+      vis();
+    }, console.error);
+  }
 }
 
-function profilIndhold(p, min, hent) {
+function profilIndhold(p, min, opdater) {
   const gem = async (felter) => {
     try {
       await gemProfil(p.uid, felter);
     } catch (err) {
       return besked(fejlTekst(err.code));
     }
-    hent();
+    opdater(felter);
+  };
+  const skiftBillede = async (billede) => {
+    const foer = p.billede;
+    opdater({ billede });
+    try {
+      await gemBillede(p.uid, billede);
+    } catch (err) {
+      console.error(err);
+      opdater({ billede: foer });
+      besked('Billedet kunne ikke gemmes. Prøv igen.');
+    }
   };
   const fil = h('input', { type: 'file', accept: 'image/*', hidden: true });
   fil.addEventListener('change', async () => {
     const f = fil.files?.[0];
+    fil.value = '';
     if (!f) return;
+    knap.classList.add('arbejder');
     try {
-      await gemBillede(p.uid, await profilbillede(f));
+      await skiftBillede(await profilbillede(f));
     } catch (err) {
       console.error(err);
-      return besked('Billedet kunne ikke gemmes. Prøv igen.');
+      knap.classList.remove('arbejder');
+      besked('Billedet kunne ikke læses. Prøv et andet.');
     }
-    hent();
   });
-  const fjernBillede = async () => {
-    try {
-      await gemBillede(p.uid, null);
-    } catch (err) {
-      return besked(fejlTekst(err.code));
-    }
-    hent();
-  };
+  const knap = h('button', { type: 'button', class: 'avatar-knap', 'aria-label': p.billede ? 'Skift profilbillede' : 'Tilføj profilbillede', onclick: () => fil.click() },
+    avatar(p, true), h('span', { class: 'kamera', 'aria-hidden': 'true' }, ikon('kamera')));
 
+  // Fødselsdagen gemmes uden at tegne arket om, ellers lukker datovælgeren undervejs.
+  const alder = h('span', { class: 'titel' }, p.foedselsdag ? foedselsdagTekst(p.foedselsdag).split(' · ')[1] : 'Ikke angivet');
   const dato = h('input', { type: 'date', value: p.foedselsdag ?? '', max: new Date().toISOString().slice(0, 10) });
-  dato.addEventListener('change', () => gem({ foedselsdag: dato.value || null }));
+  dato.addEventListener('change', async () => {
+    const v = dato.value || null;
+    alder.textContent = v ? foedselsdagTekst(v).split(' · ')[1] : 'Ikke angivet';
+    try {
+      await gemProfil(p.uid, { foedselsdag: v });
+      p.foedselsdag = v;
+      profiler.set(p.uid, p);
+    } catch (err) {
+      besked(fejlTekst(err.code));
+    }
+  });
 
   const teams = min ? t.teams : t.teams.filter((x) => x.medlemmer.includes(p.uid));
   const faerdigheder = p.faerdigheder ?? [];
 
   return [
     h('div', { class: 'profil-top' },
-      avatar(p, true),
-      min && h('div', { class: 'profil-billedknapper' },
-        fil,
-        h('button', { type: 'button', class: 'tekstknap', onclick: () => fil.click() }, p.billede ? 'Skift billede' : 'Tilføj billede'),
-        p.billede && h('button', { type: 'button', class: 'tekstknap', onclick: fjernBillede }, 'Fjern')),
+      min ? [fil, knap] : avatar(p, true),
+      min && p.billede && h('button', { type: 'button', class: 'tekstknap fjern', onclick: () => skiftBillede(null) }, 'Fjern billede'),
     ),
     h('div', { class: 'kort' },
       raekke('Navn', p.navn, min ? () => navnArk(p.navn, (navn) => gem({ navn })) : null),
       raekke('E-mail', p.email ?? '—'),
       min
-        ? h('label', { class: 'raekke' }, h('span', { class: 'hoved' }, h('span', { class: 'under' }, 'Fødselsdag'),
-          h('span', { class: 'titel' }, p.foedselsdag ? foedselsdagTekst(p.foedselsdag).split(' · ')[1] : 'Ikke angivet')), dato)
+        ? h('label', { class: 'raekke' }, h('span', { class: 'hoved' }, h('span', { class: 'under' }, 'Fødselsdag'), alder), dato)
         : p.foedselsdag && raekke('Fødselsdag', foedselsdagTekst(p.foedselsdag)),
     ),
 
@@ -185,18 +223,23 @@ function navnArk(navn, gem) {
 
 // --- Vælg færdigheder ---------------------------------------------------------------
 // Fast liste med søgning, forslag ud fra det valgte og hvad andre har valgt, og alle
-// kategorier at bladre i. Et tryk vælger eller fravælger.
+// kategorier at bladre i. Et tryk vælger eller fravælger. Mangler en færdighed, kan den
+// tilføjes fra søgefeltet.
 
 function faerdighedArk(start, gem) {
   const valgte = [...start];
   let andre = [];
-  const soeg = h('input', { type: 'search', autocomplete: 'off', placeholder: 'Søg, fx tømrer, Excel eller kørekort', enterkeyhint: 'search' });
+  let ekstra = [];
+  const soeg = h('input', { type: 'search', autocomplete: 'off', placeholder: 'Søg eller skriv en ny', enterkeyhint: 'done' });
   const valgtEl = h('div', { class: 'chips' });
-  const status = h('p', { class: 'hjaelp' });
-  const forslagEl = h('div');
+  const valgtTitel = h('span');
+  const valgtBoks = h('details', { class: 'kategori valgte', open: true }, h('summary', {}, valgtTitel),
+    valgtEl, h('p', { class: 'hjaelp' }, 'Tryk på en valgt for at fjerne den.'));
+  const forslagEl = h('div', { class: 'forslag' });
   const aabne = new Set();
 
   const skift = (f) => {
+    if (!f) return;
     const i = valgte.indexOf(f);
     if (i >= 0) valgte.splice(i, 1);
     else if (valgte.length >= MAKS_FAERDIGHEDER) return besked(`Du kan højst vælge ${MAKS_FAERDIGHEDER}`);
@@ -211,11 +254,15 @@ function faerdighedArk(start, gem) {
 
   function tegn() {
     valgtEl.replaceChildren(...valgte.map((f) => h('button', { type: 'button', class: 'chip', 'aria-pressed': 'true', onclick: () => skift(f), 'aria-label': `Fjern ${f}` }, f, ikon('kryds'))));
-    status.textContent = valgte.length ? `${valgte.length} af ${MAKS_FAERDIGHEDER} valgt. Tryk på en valgt for at fjerne den.` : 'Intet valgt endnu.';
+    valgtTitel.textContent = `Valgt · ${valgte.length} af ${MAKS_FAERDIGHEDER}`;
+    valgtBoks.hidden = !valgte.length;
     const tekst = soeg.value.trim();
     if (tekst) {
-      const fundne = soegFaerdigheder(tekst, valgte);
-      forslagEl.replaceChildren(fundne.length ? chips(fundne) : h('p', { class: 'tom' }, 'Ingen færdighed hedder sådan. Prøv et andet ord, eller find den i kategorierne.'));
+      const fundne = soegFaerdigheder(tekst, valgte, 12, ekstra);
+      const ny = egenFaerdighed(tekst, ekstra);
+      const tilfoej = ny && !fundne.includes(ny) && !valgte.includes(ny)
+        && h('button', { type: 'button', class: 'chip ny', onclick: () => skift(ny) }, ikon('plus'), `Tilføj »${ny}«`);
+      forslagEl.replaceChildren(h('div', { class: 'chips' }, fundne.map((f) => chip(f, { onclick: () => skift(f) })), tilfoej));
       return;
     }
     forslagEl.replaceChildren(
@@ -225,24 +272,31 @@ function faerdighedArk(start, gem) {
       ...Object.entries(FAERDIGHEDER).map(([kategori, liste]) => {
         const antal = liste.filter((f) => valgte.includes(f)).length;
         return h('details', { class: 'kategori', open: aabne.has(kategori), ontoggle: (e) => { if (e.target.open) aabne.add(kategori); else aabne.delete(kategori); } },
-          h('summary', {}, kategori, antal ? h('span', { class: 'valgfri' }, ` · ${antal} valgt`) : null),
+          h('summary', {}, h('span', {}, kategori, antal ? h('span', { class: 'valgfri' }, ` · ${antal} valgt`) : null)),
           chips(liste));
       }),
     );
   }
 
   soeg.addEventListener('input', tegn);
+  // Enter vælger det skrevne: en kendt færdighed med samme navn eller en ny.
+  soeg.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    skift(egenFaerdighed(soeg.value, ekstra));
+  });
   aabnArk(
     arkTop('Færdigheder', h('button', { type: 'button', class: 'tekstknap staerk', onclick: async () => { lukArk(); await gem(valgte); } }, 'Gem')),
-    valgtEl,
-    status,
-    felt('Søg', soeg),
+    valgtBoks,
+    felt('Søg', h('div', { class: 'soeg' }, ikon('soeg'), soeg)),
+    h('p', { class: 'hjaelp' }, 'Mangler en færdighed? Skriv den, og tryk Tilføj.'),
     forslagEl,
   );
   tegn();
-  // Andres færdigheder gør forslagene bedre, men arket virker uden dem.
+  // Andres færdigheder gør forslag og søgning bedre, men arket virker uden dem.
   hentKatalog().then((k) => {
     andre = k.filter((x) => x.uid !== t.bruger.uid).map((x) => x.faerdigheder ?? []);
+    ekstra = [...new Set(andre.flat().filter((f) => typeof f === 'string' && !kendtFaerdighed(f)))];
     if (!soeg.value) tegn();
   }, console.error);
 }
