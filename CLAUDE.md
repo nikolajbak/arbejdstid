@@ -32,7 +32,7 @@ cd push && npx wrangler dev --port 8787    # workeren lokalt (kræver push/.dev.
 | Ren logik uden DOM (bruges af app og tests) | `core.js` |
 | Opstart, login, faner | `app.js`, `konto.js`, `tilstand.js`, `ui.js` |
 | Fanerne | `tid.js`, `historik.js`, `kunder.js`, `indstillinger.js` |
-| Ark | `vaelger.js`, `registrering.js`, `post.js`, `opgave.js`, `godkend.js`, `teamark.js` |
+| Ark | `vaelger.js`, `registrering.js`, `post.js`, `opgave.js`, `godkend.js`, `teamark.js`, `profil.js` |
 | Firestore og synk | `firebase.js`, `firebase-config.js` (offentlig med vilje), `sky.js`, `store.js`, `team.js` |
 | Kvitteringer | `billede.js`, `kvittering.js` → workerens `push/src/kvittering.js` (Gemini) |
 | Push | `push.js`, `pushkoe.js`, `push-config.js` → `push/src/` (`index.js`, `send.js`, `token.js`, `team.js`) |

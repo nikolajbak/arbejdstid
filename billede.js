@@ -32,3 +32,18 @@ export async function komprimer(fil) {
     URL.revokeObjectURL(url);
   }
 }
+
+// Et profilbillede: beskåret til et kvadrat på 256 punkter, som JPEG.
+export async function profilbillede(fil) {
+  const url = URL.createObjectURL(fil);
+  try {
+    const img = await indlaes(url);
+    const side = Math.min(img.naturalWidth, img.naturalHeight);
+    const c = document.createElement('canvas');
+    c.width = c.height = 256;
+    c.getContext('2d').drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, 256, 256);
+    return c.toDataURL('image/jpeg', 0.8);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}

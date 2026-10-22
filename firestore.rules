@@ -193,11 +193,27 @@ service cloud.firestore {
       allow get, list: if godkendt();
       allow delete: if godkendt() && request.auth.uid == uid;
       allow create, update: if godkendt() && request.auth.uid == uid
-        && felter(['navn', 'email'], ['navn', 'email'])
+        && felter(['navn', 'email'], ['navn', 'email', 'foedselsdag', 'faerdigheder'])
         && request.resource.data.email == egenEmail()
         && request.resource.data.navn is string
         && request.resource.data.navn.size() > 0
-        && request.resource.data.navn.size() <= 60;
+        && request.resource.data.navn.size() <= 60
+        && (!('foedselsdag' in request.resource.data) || request.resource.data.foedselsdag == null
+          || (request.resource.data.foedselsdag is string
+            && request.resource.data.foedselsdag.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')))
+        && (!('faerdigheder' in request.resource.data)
+          || (request.resource.data.faerdigheder is list && request.resource.data.faerdigheder.size() <= 20));
+    }
+
+    // Profilbilledet for sig, så søgningen i kataloget ikke henter billeder.
+    match /profilbilleder/{uid} {
+      allow get: if godkendt();
+      allow delete: if godkendt() && request.auth.uid == uid;
+      allow create, update: if godkendt() && request.auth.uid == uid
+        && felter(['billede'], ['billede'])
+        && request.resource.data.billede is string
+        && request.resource.data.billede.matches('^data:image/jpeg;base64,.*')
+        && request.resource.data.billede.size() < 200000;
     }
 
     // --- Teams: alle medlemmer ser og skriver alt i teamet ------------------------------

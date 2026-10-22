@@ -15,6 +15,7 @@ const FILER = [
   'sky.js',
   'tilstand.js',
   'ui.js',
+  'profil.js',
   'vaelger.js',
   'registrering.js',
   'post.js',
