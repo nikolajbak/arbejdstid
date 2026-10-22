@@ -3,6 +3,7 @@
 
 import { dayKey, farveFor, fejlTekst, invitationsMail, normaliserEmail, personNavn } from './core.js';
 import { appAdresse } from './konto.js';
+import { meldInvitation } from './push.js';
 import { migSted, teamSted } from './sky.js';
 import {
   opretTeam, blivMedlem, inviter, traekTilbage, fjernMedlem, omdoeb, saetMitNavn, hentData, flytData, flytUdvalgt,
@@ -50,6 +51,22 @@ export function aabnSteder() {
   );
 }
 
+// Nye invitationer vises som en besked i appen, én gang pr. enhed.
+export function visInvitationer(liste) {
+  aabnArk(
+    arkTop(liste.length === 1 ? 'Ny invitation' : 'Nye invitationer'),
+    h('p', {}, liste.length === 1
+      ? `Du er inviteret til teamet ${liste[0].navn}.`
+      : `Du er inviteret til ${liste.length} teams.`),
+    h('div', { class: 'kort' }, liste.map((x) => h('div', { class: 'raekke' },
+      h('span', { class: 'hoved' }, h('span', { class: 'titel' }, x.navn), h('span', { class: 'under' }, antalMedlemmer(x))),
+      h('button', { type: 'button', class: 'knap lille', onclick: () => tagImod(x) }, 'Bliv medlem'),
+    ))),
+    h('p', { class: 'hjaelp' }, 'Invitationerne står også under Mig ▾ øverst i appen.'),
+    h('div', { class: 'knapper' }, h('button', { type: 'button', class: 'knap sekundaer', onclick: lukArk }, 'Senere')),
+  );
+}
+
 async function tagImod(x) {
   try {
     await blivMedlem(x.id, t.bruger);
@@ -82,7 +99,7 @@ function opretArk() {
     },
       arkTop('Opret team', h('button', { type: 'submit', class: 'tekstknap staerk' }, 'Opret')),
       felt('Teamets navn', navn),
-      h('p', { class: 'hjaelp' }, 'Bagefter kan du invitere andre på e-mail og tage dine egne kunder og registreringer med.'),
+      h('p', { class: 'hjaelp' }, 'Bagefter kan du invitere andre og tage dine egne kunder og registreringer med.'),
       fejl,
     ),
   );
@@ -267,9 +284,10 @@ export function teamSektion() {
       return (fejl.textContent = fejlTekst(err.code));
     }
     email.value = '';
-    besked(`${adr} er inviteret`);
-    location.href = invitationsMail(adr, appAdresse(), team.navn);
+    meldInvitation(team.id, adr);
+    besked(`${adr} er inviteret og får besked i appen`);
   };
+  const mail = (adr) => () => { location.href = invitationsMail(adr, appAdresse(), team.navn); };
   const medlemmer = [...team.medlemmer].sort((a, b) => (a === uid ? -1 : b === uid ? 1 : personNavn(team, a).localeCompare(personNavn(team, b), 'da')));
 
   return [
@@ -292,6 +310,7 @@ export function teamSektion() {
       h('div', { class: 'ark-overskrift' }, h('h3', {}, 'Inviterede')),
       h('div', { class: 'kort' }, team.inviterede.map((adr) => h('div', { class: 'raekke' },
         h('span', { class: 'hoved' }, h('span', { class: 'titel' }, adr), h('span', { class: 'under' }, 'Venter')),
+        h('button', { type: 'button', class: 'tekstknap', onclick: mail(adr) }, 'Send e-mail'),
         h('button', { type: 'button', class: 'tekstknap', onclick: proev(() => traekTilbage(team.id, adr)) }, 'Træk tilbage')))),
     ],
     h('form', { class: 'inviter', onsubmit: send },
@@ -299,7 +318,7 @@ export function teamSektion() {
       h('button', { type: 'submit', class: 'knap sekundaer lille' }, 'Invitér'),
     ),
     fejl,
-    h('p', { class: 'hjaelp' }, 'Din mailapp åbner med en færdig invitation, som du selv sender. Personen skal være godkendt til appen af en administrator. Invitationen står under Mig ▾.'),
+    h('p', { class: 'hjaelp' }, 'Personen får besked i appen og en notifikation, hvis notifikationer er slået til. Bruger personen ikke appen endnu, så tryk »Send e-mail«. Personen skal være godkendt til appen af en administrator.'),
     h('div', { class: 'kort' },
       raekke('Tilføj fra Mig', 'Enkelte kunder og opgaver', () => tilfoejFraMig(team.id)),
       raekke('Flyt mine data hertil', 'Kunder, opgaver, registreringer og poster fra Mig', () => flytHertil(team.id)),

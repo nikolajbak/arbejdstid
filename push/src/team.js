@@ -18,6 +18,9 @@ export function lavHentTeam({ projekt, emulator }) {
         .map((v) => v.stringValue)
         .filter((v) => typeof v === 'string'),
       navne,
+      inviterede: (fields.inviterede?.arrayValue?.values ?? [])
+        .map((v) => v.stringValue)
+        .filter((v) => typeof v === 'string'),
     };
   };
 }

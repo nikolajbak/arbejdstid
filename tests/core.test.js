@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  nyeInvitationer,
   durationMs, amountOf, formatDuration, formatKr, parseHours, validateEntry,
 } from '../core.js';
 
@@ -849,4 +850,11 @@ test('validateBackup tager opgaver med og afviser et ukendt niveau', () => {
   assert.equal(validateBackup(backup([opg('o1', 'a', 'godkendt')])).ok, true);
   assert.equal(validateBackup(backup([opg('o1', 'a', 'maaske')])).ok, false);
   assert.equal(validateBackup(backup([{ ...opg('o1', 'a'), titel: '' }])).ok, false);
+});
+
+test('nyeInvitationer: kun usete vises, og kun nuværende huskes', () => {
+  const r = nyeInvitationer([{ id: 'a' }, { id: 'b' }], ['a', 'gammel']);
+  assert.deepEqual(r.nye, [{ id: 'b' }]);
+  assert.deepEqual(r.sete, ['a', 'b']);
+  assert.deepEqual(nyeInvitationer([], ['a']), { nye: [], sete: [] });
 });

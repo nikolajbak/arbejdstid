@@ -1,6 +1,6 @@
 // Opstart, login-skærme, faner og rendering.
 
-import { fejlTekst, flet } from './core.js';
+import { fejlTekst, flet, nyeInvitationer } from './core.js';
 import { createStore } from './store.js';
 import {
   lytKonto, logInd, opretKonto, sendBekraeftelse, nulstilKode, opdaterBruger, logUd,
@@ -11,7 +11,7 @@ import { lytMineTeams } from './team.js';
 import { t, commit, setRender, setSkift, setGaaTil, saetBasis, setVedBeskeder } from './tilstand.js';
 import { meld, koerKoe } from './push.js';
 import { h, felt, besked } from './ui.js';
-import { aabnSteder } from './teamark.js';
+import { aabnSteder, visInvitationer } from './teamark.js';
 import { visTid } from './tid.js';
 import { visHistorik } from './historik.js';
 import { visKunder } from './kunder.js';
@@ -192,13 +192,19 @@ async function efterLogin(user) {
     }
     if (adresse.has('team') || adresse.has('vis')) history.replaceState(null, '', location.pathname + location.hash);
   };
+  // Åbnet fra en notifikation om en invitation: ?vis=invitationer.
+  let visAlleInvitationer = new URLSearchParams(location.search).get('vis') === 'invitationer';
   lytMineTeams(user.uid, user.email, ({ teams, invitationer }) => {
     t.teams = teams;
     t.invitationer = invitationer;
-    if (!startet) return aabnFoerste();
-    if (t.arbejdssted && !teams.some((x) => x.id === t.arbejdssted)) return udAfTeam();
-    t.team = teams.find((x) => x.id === t.arbejdssted) ?? null;
-    render();
+    if (!startet) aabnFoerste();
+    else if (t.arbejdssted && !teams.some((x) => x.id === t.arbejdssted)) udAfTeam();
+    else {
+      t.team = teams.find((x) => x.id === t.arbejdssted) ?? null;
+      render();
+    }
+    tjekInvitationer(visAlleInvitationer);
+    visAlleInvitationer = false;
   }, (err) => {
     console.error(err);
     aabnFoerste();
@@ -271,6 +277,20 @@ function visSted() {
   knap.hidden = false;
   knap.firstChild.textContent = t.team?.navn ?? 'Mig';
   knap.classList.toggle('prik-ny', t.invitationer.length > 0);
+}
+
+// Viser nye invitationer én gang pr. enhed; fra en notifikation vises alle.
+function tjekInvitationer(alle) {
+  const noegle = `arbejdstid.invitationer.${t.bruger.uid}`;
+  let sete = [];
+  try { sete = JSON.parse(localStorage.getItem(noegle)) ?? []; } catch {}
+  const r = nyeInvitationer(t.invitationer, Array.isArray(sete) ? sete : []);
+  try { localStorage.setItem(noegle, JSON.stringify(r.sete)); } catch {}
+  const liste = alle ? t.invitationer : r.nye;
+  if (!liste.length) return;
+  // Et åbent ark afbrydes ikke; prikken på Mig ▾ viser stadig invitationen.
+  if (document.querySelector('dialog.ark[open]')) return besked(`Du er inviteret til teamet ${liste[0].navn}`);
+  visInvitationer(liste);
 }
 
 function adgangFjernet() {
