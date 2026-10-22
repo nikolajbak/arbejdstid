@@ -1,0 +1,41 @@
+# Udgiver push-workeren (push/) til Cloudflare, når den ændres på main.
+# Kræver repo-secrets CLOUDFLARE_API_TOKEN (skabelonen »Edit Cloudflare Workers«)
+# og CLOUDFLARE_ACCOUNT_ID. Workerens egne secrets ligger i Cloudflare og røres ikke.
+name: Worker
+
+on:
+  push:
+    branches: [main]
+    paths: ['push/**', '.github/workflows/worker.yml']
+  workflow_dispatch:
+
+concurrency: worker
+
+jobs:
+  udgiv:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: push
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: push/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - name: Tjek secrets
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          KONTO: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$TOKEN" ] || [ -z "$KONTO" ]; then
+            echo "::error::Mangler CLOUDFLARE_API_TOKEN eller CLOUDFLARE_ACCOUNT_ID under Settings → Secrets and variables → Actions"
+            exit 1
+          fi
+      - run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

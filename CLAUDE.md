@@ -49,7 +49,10 @@ cd push && npx wrangler dev --port 8787    # workeren lokalt (kræver push/.dev.
   `npx firebase deploy --only firestore:rules --project arbejdstid-dfdc6`
   (kræver `npx firebase login`) eller i konsollen. Udgives reglerne ikke,
   afviser Firestore de nye felter. Udgiv reglerne før den kode, der bruger dem.
-- **Workeren:** `cd push && npx wrangler deploy`.
+- **Workeren:** udgives af GitHub Actions (`.github/workflows/worker.yml`), når
+  `push/` ændres på `main`, efter workerens tests. Kræver repo-secrets
+  `CLOUDFLARE_API_TOKEN` og `CLOUDFLARE_ACCOUNT_ID`. Manuelt: kør workflowet
+  »Worker« eller `cd push && npx wrangler deploy`.
 
 ## Data og hemmeligheder
 
