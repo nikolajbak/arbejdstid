@@ -187,6 +187,19 @@ service cloud.firestore {
       }
     }
 
+    // Brugerkataloget: alle godkendte kan søge efter hinanden for at invitere til teams.
+    // Hver bruger skriver kun sit eget navn og sin egen e-mail.
+    match /katalog/{uid} {
+      allow get, list: if godkendt();
+      allow delete: if godkendt() && request.auth.uid == uid;
+      allow create, update: if godkendt() && request.auth.uid == uid
+        && felter(['navn', 'email'], ['navn', 'email'])
+        && request.resource.data.email == egenEmail()
+        && request.resource.data.navn is string
+        && request.resource.data.navn.size() > 0
+        && request.resource.data.navn.size() <= 60;
+    }
+
     // --- Teams: alle medlemmer ser og skriver alt i teamet ------------------------------
 
     match /teams/{teamId} {

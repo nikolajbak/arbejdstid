@@ -36,10 +36,13 @@ få et overblik og en CSV-fil til fakturering.
   opgaver, poster og saldo, og alle ser alles tid. Under **Hvem**, når du
   starter et ur eller tilføjer tid, vælger du, hvem tiden gælder for; et ur for
   flere giver én registrering pr. person. Historik kan filtreres på person, og
-  CSV'en får kolonnen Person. Under Indstillinger → Team inviterer du på
-  e-mail (personen skal være godkendt til appen). Bruger personen allerede
-  appen, får den invitationen som besked i appen og som notifikation, hvis
-  notifikationer er slået til; ellers sender du en e-mail med **Send e-mail**.
+  CSV'en får kolonnen Person. Under Indstillinger → Team → **Invitér** søger
+  du efter brugere på navn eller e-mail; listen filtreres, mens du skriver.
+  Personen får invitationen som besked i appen og som notifikation, hvis
+  notifikationer er slået til. Bruger personen ikke appen endnu, skriver du
+  e-mailen og sender bagefter en e-mail med **Send e-mail** (personen skal være
+  godkendt til appen). Alle godkendte brugere kan se hinandens navn og e-mail i
+  søgningen. Ved opstart tilbyder appen at slå notifikationer til.
   Her retter du også navne, fjerner
   medlemmer, melder dig ud og flytter dine egne data ind i teamet. Flytningen
   gemmer først en backup og tømmer derefter Mig. **Tilføj fra Mig** tager kun

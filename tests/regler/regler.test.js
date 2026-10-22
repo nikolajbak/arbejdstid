@@ -341,3 +341,13 @@ test('opgaver på en kunde valideres, for Mig og i et team', async () => {
   await assertSucceeds(setDoc(doc(ven(), 'teams/t1/opgaver/o1'), { ...opgave, niveau: 'godkendt' }));
   await assertFails(setDoc(doc(admin(), 'teams/t1/opgaver/o2'), opgave));
 });
+
+test('katalog: godkendte kan søge, hver skriver kun sit eget med egen e-mail', async () => {
+  await assertSucceeds(setDoc(doc(ven(), 'katalog/ven'), { navn: 'Ven', email: 'ven@x.dk' }));
+  await assertSucceeds(getDocs(collection(admin(), 'katalog')));
+  await assertFails(setDoc(doc(ven(), 'katalog/admin'), { navn: 'Ven', email: 'ven@x.dk' }));
+  await assertFails(setDoc(doc(ven(), 'katalog/ven'), { navn: 'Ven', email: 'admin@x.dk' }));
+  await assertFails(setDoc(doc(ven(), 'katalog/ven'), { navn: '', email: 'ven@x.dk' }));
+  await assertFails(setDoc(doc(ven(), 'katalog/ven'), { navn: 'Ven', email: 'ven@x.dk', admin: true }));
+  await assertFails(getDocs(collection(som('ude', 'ude@x.dk'), 'katalog')));
+});
