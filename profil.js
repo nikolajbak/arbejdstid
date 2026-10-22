@@ -8,11 +8,13 @@ import {
 import { profilbillede } from './billede.js';
 import { gemBillede, gemProfil, hentKatalog, hentProfil, standardNavn } from './team.js';
 import { t, render } from './tilstand.js';
-import { h, aabnArk, lukArk, arkTop, besked, chip, felt, ikon } from './ui.js';
+import { h, aabnArk, lukArk, arkTop, besked, chip, felt, foldbar, ikon } from './ui.js';
 
 // Hentede profiler, så et ark kan åbne med det samme og opdateres bagefter.
 const profiler = new Map();
 const egen = () => profiler.get(t.bruger.uid);
+// Om færdighederne på en profil er foldet ud; huskes, mens appen er åben.
+let faerdighederAabne = true;
 
 const initialer = (navn) => String(navn ?? '?').split(/\s+/).filter(Boolean).slice(0, 2).map((d) => d[0].toUpperCase()).join('');
 
@@ -160,11 +162,12 @@ function profilIndhold(p, min, opdater) {
         : p.foedselsdag && raekke('Fødselsdag', foedselsdagTekst(p.foedselsdag)),
     ),
 
-    h('div', { class: 'ark-overskrift' }, h('h3', {}, 'Færdigheder'),
-      h('span', { class: 'valgfri' }, faerdigheder.length ? `${faerdigheder.length}` : '')),
     faerdigheder.length
-      ? h('div', { class: 'chips' }, faerdigheder.map((f) => h('span', { class: 'chip' }, f)))
-      : h('p', { class: 'tom' }, min ? 'Vælg dine færdigheder, så dit team ved, hvad du kan.' : 'Ingen færdigheder angivet.'),
+      ? foldbar([h('h3', {}, 'Færdigheder'), h('span', { class: 'valgfri' }, ` · ${faerdigheder.length}`)],
+        h('div', { class: 'chips' }, faerdigheder.map((f) => h('span', { class: 'chip' }, f))),
+        { aaben: faerdighederAabne, klasse: 'sektion', onSkift: (v) => { faerdighederAabne = v; } })
+      : [h('div', { class: 'ark-overskrift' }, h('h3', {}, 'Færdigheder')),
+        h('p', { class: 'tom' }, min ? 'Vælg dine færdigheder, så dit team ved, hvad du kan.' : 'Ingen færdigheder angivet.')],
     min && h('button', { type: 'button', class: 'knap sekundaer', onclick: () => faerdighedArk(faerdigheder, (liste) => gem({ faerdigheder: liste })) },
       ikon('plus'), faerdigheder.length ? 'Ret færdigheder' : 'Vælg færdigheder'),
 
@@ -233,8 +236,7 @@ function faerdighedArk(start, gem) {
   const soeg = h('input', { type: 'search', autocomplete: 'off', placeholder: 'Søg eller skriv en ny', enterkeyhint: 'done' });
   const valgtEl = h('div', { class: 'chips' });
   const valgtTitel = h('span');
-  const valgtBoks = h('details', { class: 'kategori valgte', open: true }, h('summary', {}, valgtTitel),
-    valgtEl, h('p', { class: 'hjaelp' }, 'Tryk på en valgt for at fjerne den.'));
+  const valgtBoks = foldbar(valgtTitel, [valgtEl, h('p', { class: 'hjaelp' }, 'Tryk på en valgt for at fjerne den.')], { klasse: 'kategori valgte' });
   const forslagEl = h('div', { class: 'forslag' });
   const aabne = new Set();
 
@@ -271,9 +273,8 @@ function faerdighedArk(start, gem) {
       h('div', { class: 'ark-overskrift' }, h('h3', {}, 'Alle kategorier')),
       ...Object.entries(FAERDIGHEDER).map(([kategori, liste]) => {
         const antal = liste.filter((f) => valgte.includes(f)).length;
-        return h('details', { class: 'kategori', open: aabne.has(kategori), ontoggle: (e) => { if (e.target.open) aabne.add(kategori); else aabne.delete(kategori); } },
-          h('summary', {}, h('span', {}, kategori, antal ? h('span', { class: 'valgfri' }, ` · ${antal} valgt`) : null)),
-          chips(liste));
+        return foldbar([kategori, antal ? h('span', { class: 'valgfri' }, ` · ${antal} valgt`) : null], chips(liste),
+          { aaben: aabne.has(kategori), klasse: 'kategori', onSkift: (v) => { if (v) aabne.add(kategori); else aabne.delete(kategori); } });
       }),
     );
   }
