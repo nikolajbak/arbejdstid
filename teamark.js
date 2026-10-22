@@ -1,12 +1,12 @@
 // Arbejdssted og teams: vælg Mig eller et team, invitationer, sektionen Team i
 // Indstillinger og flytning af egne data ind i et team.
 
-import { dayKey, farveFor, fejlTekst, invitationsMail, normaliserEmail, personNavn } from './core.js';
+import { dayKey, farveFor, fejlTekst, invitationsMail, normaliserEmail, personNavn, soegBrugere } from './core.js';
 import { appAdresse } from './konto.js';
 import { meldInvitation } from './push.js';
 import { migSted, teamSted } from './sky.js';
 import {
-  opretTeam, blivMedlem, inviter, traekTilbage, fjernMedlem, omdoeb, saetMitNavn, hentData, flytData, flytUdvalgt,
+  opretTeam, blivMedlem, inviter, traekTilbage, fjernMedlem, omdoeb, saetMitNavn, hentData, flytData, flytUdvalgt, hentKatalog,
 } from './team.js';
 import { t, skiftArbejdssted } from './tilstand.js';
 import { h, aabnArk, lukArk, arkTop, besked, chip, downloadFile, felt, ikon } from './ui.js';
@@ -227,6 +227,64 @@ export async function tilfoejFraMig(teamId) {
   );
 }
 
+// --- Invitér: søg i brugerkataloget, mens der skrives -------------------------------
+
+function inviterArk(team) {
+  const soeg = h('input', { type: 'search', autocomplete: 'off', placeholder: 'Navn eller e-mail', enterkeyhint: 'search' });
+  const liste = h('div', { class: 'kort' });
+  const fejl = h('p', { class: 'fejl' });
+  const udelad = new Set([...team.medlemmer, ...team.inviterede]);
+  let katalog = null;
+
+  const tilfoej = async (adr, navn) => {
+    fejl.textContent = '';
+    if (adr === normaliserEmail(t.bruger.email)) return (fejl.textContent = 'Du er allerede med');
+    try {
+      await inviter(team.id, adr);
+    } catch (err) {
+      return (fejl.textContent = fejlTekst(err.code));
+    }
+    udelad.add(adr);
+    meldInvitation(team.id, adr);
+    besked(`${navn} er inviteret og får besked i appen`);
+    tegn();
+  };
+  const linje = (titel, under, adr, navn) => h('div', { class: 'raekke' },
+    h('span', { class: 'hoved' }, h('span', { class: 'titel' }, titel), under && h('span', { class: 'under' }, under)),
+    h('button', { type: 'button', class: 'knap lille', onclick: () => tilfoej(adr, navn) }, 'Invitér'));
+
+  function tegn() {
+    const tekst = soeg.value;
+    const adr = normaliserEmail(tekst);
+    const fundne = katalog ? soegBrugere(katalog, tekst, [...udelad]) : [];
+    const kendt = adr && katalog?.some((b) => b.email === adr);
+    const raekker = fundne.map((b) => linje(b.navn, b.email, b.email, b.navn));
+    if (adr && !kendt && !udelad.has(adr)) raekker.push(linje(adr, 'Bruger ikke appen endnu', adr, adr));
+    if (!raekker.length) {
+      const tom = katalog === null ? 'Henter brugere …'
+        : adr && udelad.has(adr) ? 'Allerede med eller inviteret'
+          : 'Ingen fundet. Skriv en e-mail for at invitere en, der ikke bruger appen endnu.';
+      raekker.push(h('div', { class: 'raekke' }, h('span', { class: 'hoved' }, h('span', { class: 'under' }, tom))));
+    }
+    liste.replaceChildren(...raekker);
+  }
+
+  soeg.addEventListener('input', tegn);
+  aabnArk(
+    arkTop(`Invitér til ${team.navn}`),
+    felt('Søg', soeg),
+    liste,
+    fejl,
+  );
+  tegn();
+  soeg.focus();
+  hentKatalog().then((k) => { katalog = k; }, (err) => {
+    console.error(err);
+    katalog = [];
+    fejl.textContent = 'Brugerlisten kunne ikke hentes. Du kan stadig invitere på e-mail.';
+  }).then(tegn);
+}
+
 // --- Sektionen Team i Indstillinger ------------------------------------------------
 
 function tekstArk(titel, etiket, vaerdi, gem) {
@@ -269,24 +327,6 @@ export function teamSektion() {
   const team = t.team;
   if (!team) return null;
   const uid = t.bruger.uid;
-  const email = h('input', { type: 'email', autocomplete: 'off', placeholder: 'navn@firma.dk', enterkeyhint: 'send' });
-  const fejl = h('p', { class: 'fejl' });
-  const send = async (e) => {
-    e.preventDefault();
-    fejl.textContent = '';
-    const adr = normaliserEmail(email.value);
-    if (!adr) return (fejl.textContent = 'Skriv en gyldig e-mail');
-    if (team.inviterede.includes(adr)) return (fejl.textContent = 'Den e-mail er allerede inviteret');
-    if (adr === normaliserEmail(t.bruger.email)) return (fejl.textContent = 'Du er allerede med');
-    try {
-      await inviter(team.id, adr);
-    } catch (err) {
-      return (fejl.textContent = fejlTekst(err.code));
-    }
-    email.value = '';
-    meldInvitation(team.id, adr);
-    besked(`${adr} er inviteret og får besked i appen`);
-  };
   const mail = (adr) => () => { location.href = invitationsMail(adr, appAdresse(), team.navn); };
   const medlemmer = [...team.medlemmer].sort((a, b) => (a === uid ? -1 : b === uid ? 1 : personNavn(team, a).localeCompare(personNavn(team, b), 'da')));
 
@@ -313,12 +353,8 @@ export function teamSektion() {
         h('button', { type: 'button', class: 'tekstknap', onclick: mail(adr) }, 'Send e-mail'),
         h('button', { type: 'button', class: 'tekstknap', onclick: proev(() => traekTilbage(team.id, adr)) }, 'Træk tilbage')))),
     ],
-    h('form', { class: 'inviter', onsubmit: send },
-      felt('Invitér e-mail', email),
-      h('button', { type: 'submit', class: 'knap sekundaer lille' }, 'Invitér'),
-    ),
-    fejl,
-    h('p', { class: 'hjaelp' }, 'Personen får besked i appen og en notifikation, hvis notifikationer er slået til. Bruger personen ikke appen endnu, så tryk »Send e-mail«. Personen skal være godkendt til appen af en administrator.'),
+    h('div', { class: 'kort' }, raekke('Invitér', 'Søg efter navn eller e-mail', () => inviterArk(team))),
+    h('p', { class: 'hjaelp' }, 'Personen får besked i appen og en notifikation, hvis notifikationer er slået til. Bruger personen ikke appen endnu, så invitér på e-mail og tryk »Send e-mail«. Personen skal være godkendt til appen af en administrator.'),
     h('div', { class: 'kort' },
       raekke('Tilføj fra Mig', 'Enkelte kunder og opgaver', () => tilfoejFraMig(team.id)),
       raekke('Flyt mine data hertil', 'Kunder, opgaver, registreringer og poster fra Mig', () => flytHertil(team.id)),

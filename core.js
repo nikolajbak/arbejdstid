@@ -611,6 +611,31 @@ export function normaliserEmail(s) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) ? e : null;
 }
 
+// Brugerkataloget filtreret efter søgeteksten, mens der skrives: hvert ord skal
+// findes i navnet eller e-mailen. Navne, der begynder med søgningen, står først.
+// udelad er uid'er og e-mails, der ikke skal vises (medlemmer og inviterede).
+const tilSoeg = (s) => String(s ?? '').toLowerCase().replace(/æ/g, 'ae').replace(/ø/g, 'o')
+  .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+export function soegBrugere(brugere, tekst, udelad = [], max = 8) {
+  const ude = new Set(udelad);
+  const ord = tilSoeg(tekst).split(/\s+/).filter(Boolean);
+  const point = (b) => {
+    const navn = tilSoeg(b.navn);
+    const alt = `${navn} ${tilSoeg(b.email)}`;
+    if (!ord.every((o) => alt.includes(o))) return -1;
+    if (!ord.length) return 0;
+    if (navn.startsWith(ord[0])) return 2;
+    return navn.split(/\s+/).some((d) => d.startsWith(ord[0])) ? 1 : 0;
+  };
+  return brugere
+    .filter((b) => !ude.has(b.uid) && !ude.has(b.email))
+    .map((b) => ({ b, p: point(b) }))
+    .filter((x) => x.p >= 0)
+    .sort((a, c) => c.p - a.p || a.b.navn.localeCompare(c.b.navn, 'da'))
+    .slice(0, max)
+    .map((x) => x.b);
+}
+
 // Invitationer, brugeren ikke har fået vist på denne enhed, og de id'er, der
 // skal huskes som sete. Kun nuværende invitationer huskes, så en ny invitation
 // til et team, man har forladt, vises igen.

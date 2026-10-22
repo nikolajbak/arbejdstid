@@ -5,9 +5,11 @@ import { auth } from './firebase.js';
 import { PUSH_URL, VAPID_PUBLIC } from './push-config.js';
 import { koeTilfoej, koeSend, pushStatus } from './pushkoe.js';
 import { t } from './tilstand.js';
-import { besked } from './ui.js';
+import { h, aabnArk, lukArk, arkTop, besked } from './ui.js';
 
 const TIP = 'arbejdstid.pushtip';
+const TILBUD = 'arbejdstid.pushtilbud';
+const TILBUD_IGEN_MS = 7 * 24 * 3600 * 1000;
 const VENT_MS = 10000;
 
 // localStorage, der aldrig kaster: en fejl i lageret må ikke stoppe en gemning.
@@ -157,4 +159,35 @@ export function meldInvitation(teamId, email) {
   if (!PUSH_URL) return;
   koeTilfoej(lager, { teamId, til: email, slags: 'invitation', antal: 1, fra: t.bruger.uid }, Date.now());
   koerKoe();
+}
+
+// Et tydeligt ark ved opstart til dem, der ikke har notifikationer: én knap slår dem til.
+// »Ikke nu« spørger igen om en uge. Et åbent ark afbrydes ikke.
+export async function tilbydNotifikationer() {
+  if (!PUSH_URL || document.querySelector('dialog.ark[open]')) return;
+  const sidst = Number(lager.getItem(TILBUD)) || 0;
+  if (Date.now() - sidst < TILBUD_IGEN_MS) return;
+  const s = await status();
+  const hjemmeskaerm = s.tekst.startsWith('Læg appen');
+  if (!s.kanSlaaTil && !hjemmeskaerm) return;
+  lager.setItem(TILBUD, String(Date.now()));
+  const slaa = async () => {
+    try {
+      await slaaTil();
+    } catch (err) {
+      console.error(err);
+      return besked('Notifikationerne kunne ikke slås til. Prøv under Indstillinger.');
+    }
+    lukArk();
+    if ((await status()).abonneret) besked('Notifikationer er slået til');
+  };
+  aabnArk(
+    arkTop('Få besked med det samme'),
+    h('p', {}, 'Slå notifikationer til, så du får besked, når du bliver inviteret til et team, eller når noget venter på din godkendelse.'),
+    hjemmeskaerm && h('p', { class: 'hjaelp' }, 'På iPhone: tryk på Del-knappen i Safari, vælg »Føj til hjemmeskærm«, og åbn appen derfra. Så kan du slå notifikationer til.'),
+    h('div', { class: 'knapper' },
+      !hjemmeskaerm && h('button', { type: 'button', class: 'knap', onclick: slaa }, 'Slå notifikationer til'),
+      h('button', { type: 'button', class: 'knap sekundaer', onclick: lukArk }, hjemmeskaerm ? 'OK' : 'Ikke nu'),
+    ),
+  );
 }

@@ -7,9 +7,9 @@ import {
   hentGodkendelse, lytGodkendelse, sikrProfil, lytBrugere,
 } from './konto.js';
 import { startSky, migSted, teamSted } from './sky.js';
-import { lytMineTeams } from './team.js';
+import { lytMineTeams, sikrKatalog } from './team.js';
 import { t, commit, setRender, setSkift, setGaaTil, saetBasis, setVedBeskeder } from './tilstand.js';
-import { meld, koerKoe, forny } from './push.js';
+import { meld, koerKoe, forny, tilbydNotifikationer } from './push.js';
 import { h, felt, besked } from './ui.js';
 import { aabnSteder, visInvitationer } from './teamark.js';
 import { visTid } from './tid.js';
@@ -194,6 +194,8 @@ async function efterLogin(user) {
     if (adresse.has('team') || adresse.has('vis')) history.replaceState(null, '', location.pathname + location.hash);
   };
   // Åbnet fra en notifikation om en invitation: ?vis=invitationer.
+  // Første liste over teams: kataloget og tilbuddet om notifikationer, én gang pr. login.
+  let foersteListe = false;
   let visAlleInvitationer = new URLSearchParams(location.search).get('vis') === 'invitationer';
   lytMineTeams(user.uid, user.email, ({ teams, invitationer }) => {
     t.teams = teams;
@@ -206,6 +208,11 @@ async function efterLogin(user) {
     }
     tjekInvitationer(visAlleInvitationer);
     visAlleInvitationer = false;
+    if (!foersteListe) {
+      foersteListe = true;
+      sikrKatalog(user, teams).catch(console.error);
+      tilbydNotifikationer().catch(console.error);
+    }
   }, (err) => {
     console.error(err);
     aabnFoerste();

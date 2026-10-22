@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  nyeInvitationer,
+  nyeInvitationer, soegBrugere,
   durationMs, amountOf, formatDuration, formatKr, parseHours, validateEntry,
 } from '../core.js';
 
@@ -857,4 +857,21 @@ test('nyeInvitationer: kun usete vises, og kun nuværende huskes', () => {
   assert.deepEqual(r.nye, [{ id: 'b' }]);
   assert.deepEqual(r.sete, ['a', 'b']);
   assert.deepEqual(nyeInvitationer([], ['a']), { nye: [], sete: [] });
+});
+
+test('soegBrugere: filtrerer mens der skrives, udelader og sorterer', () => {
+  const brugere = [
+    { uid: '1', navn: 'Anders Holm', email: 'anders@firma.dk' },
+    { uid: '2', navn: 'Mette Andersen', email: 'mette@firma.dk' },
+    { uid: '3', navn: 'Søren', email: 'soeren@x.dk' },
+    { uid: '4', navn: 'Bo', email: 'bo@firma.dk' },
+  ];
+  const navne = (l) => l.map((b) => b.navn);
+  assert.deepEqual(navne(soegBrugere(brugere, 'and')), ['Anders Holm', 'Mette Andersen']);
+  assert.deepEqual(navne(soegBrugere(brugere, 'AND', ['1'])), ['Mette Andersen']);
+  assert.deepEqual(navne(soegBrugere(brugere, 'soren')), ['Søren']);
+  assert.deepEqual(navne(soegBrugere(brugere, 'mette firma')), ['Mette Andersen']);
+  assert.deepEqual(navne(soegBrugere(brugere, '', ['bo@firma.dk'])), ['Anders Holm', 'Mette Andersen', 'Søren']);
+  assert.deepEqual(soegBrugere(brugere, 'xyz'), []);
+  assert.equal(soegBrugere(brugere, '', [], 2).length, 2);
 });

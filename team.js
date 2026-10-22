@@ -1,11 +1,12 @@
 // Teams i databasen: find, opret, invitér, bliv medlem, meld ud og flyt data.
 
 import {
-  doc, collection, query, where, onSnapshot, setDoc, updateDoc, getDocsFromServer, getDocFromServer,
+  doc, collection, query, where, onSnapshot, setDoc, updateDoc, getDoc, getDocs, getDocsFromServer, getDocFromServer,
   writeBatch, arrayUnion, arrayRemove, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js';
 import { db } from './firebase.js';
 import { flytTilTeam, flytUdvalgtTilTeam, forskel, normaliserEmail } from './core.js';
+import { t } from './tilstand.js';
 
 const SAMLINGER = ['kunder', 'opgavetyper', 'registreringer', 'poster', 'opgaver'];
 const team = (id) => doc(db, 'teams', id);
@@ -43,7 +44,27 @@ export const traekTilbage = (id, email) => updateDoc(team(id), { inviterede: arr
 // Navnet bliver stående, så den fjernedes registreringer stadig viser det.
 export const fjernMedlem = (id, uid) => updateDoc(team(id), { medlemmer: arrayRemove(uid) });
 export const omdoeb = (id, navn) => updateDoc(team(id), { navn });
-export const saetMitNavn = (id, uid, navn) => updateDoc(team(id), { [`navne.${uid}`]: navn });
+export const saetMitNavn = async (id, uid, navn) => {
+  await updateDoc(team(id), { [`navne.${uid}`]: navn });
+  await saetKatalog(uid, t.bruger.email, navn).catch(console.error);
+};
+
+// Kataloget over brugere, så man kan finde og invitere hinanden på navn.
+// Hver bruger skriver kun sit eget: { navn, email }.
+export const saetKatalog = (uid, email, navn) =>
+  setDoc(doc(db, 'katalog', uid), { navn: String(navn).slice(0, 60), email: normaliserEmail(email) });
+
+// Første gang: navnet fra et team, man allerede har sat det i, ellers delen før @.
+export async function sikrKatalog(user, teams) {
+  const ref = doc(db, 'katalog', user.uid);
+  if ((await getDoc(ref)).exists()) return;
+  const navn = teams.map((x) => x.navne?.[user.uid]).find(Boolean) ?? standardNavn(user.email);
+  await saetKatalog(user.uid, user.email, navn);
+}
+
+export async function hentKatalog() {
+  return (await getDocs(collection(db, 'katalog'))).docs.map((d) => ({ uid: d.id, ...d.data() }));
+}
 
 export const blivMedlem = (id, user) => updateDoc(team(id), {
   medlemmer: arrayUnion(user.uid),
