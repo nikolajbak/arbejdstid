@@ -118,7 +118,10 @@ emulatoren.
    Firestore Database → Rules og tryk Publish. Eller fra terminalen:
    `npx firebase login` og derefter
    `npx firebase deploy --only firestore:rules --project arbejdstid-dfdc6`.
-   Gør det igen, hver gang `firestore.rules` ændres.
+   Derefter udgiver GitHub Actions (workflowet »Regler«) dem automatisk, når
+   `firestore.rules` ændres på `main` — kræver repo-secret
+   `FIREBASE_SERVICE_ACCOUNT` (JSON-nøgle for en servicekonto med rollerne
+   »Firebase Rules Admin« og »Service Usage Consumer«).
 3. **Tillad appens adresse:** Authentication → Settings → Authorized domains →
    tilføj `nikolajbak.github.io`. Ellers kan bekræftelses- og
    nulstillingsmails ikke føre tilbage til appen.
