@@ -9,7 +9,7 @@ import {
 import { startSky, migSted, teamSted } from './sky.js';
 import { lytMineTeams } from './team.js';
 import { t, commit, setRender, setSkift, setGaaTil, saetBasis, setVedBeskeder } from './tilstand.js';
-import { meld, koerKoe } from './push.js';
+import { meld, koerKoe, forny } from './push.js';
 import { h, felt, besked } from './ui.js';
 import { aabnSteder, visInvitationer } from './teamark.js';
 import { visTid } from './tid.js';
@@ -168,6 +168,7 @@ async function efterLogin(user) {
   t.bruger = user;
   udeBesked = null;
   koerKoe();
+  forny();
   // Arbejdsstedet åbnes, når listen over teams er kendt, så et husket team kan
   // tjekkes. Fejler listen (fx før reglerne er udgivet), åbnes Mig.
   let gemt = null;
