@@ -638,8 +638,8 @@ export function soegBrugere(brugere, tekst, udelad = [], max = 8) {
 
 // --- Profil -----------------------------------------------------------------------
 
-// Færdigheder vælges fra en fast liste i kategorier, så de kan søges, foreslås og
-// sammenlignes. Ingen fritekst: stavemåder og dubletter forsvinder.
+// Færdigheder vælges helst fra en fast liste i kategorier, så de kan søges, foreslås og
+// sammenlignes. Mangler en, kan brugeren tilføje sin egen (se egenFaerdighed).
 export const FAERDIGHEDER = {
   'Håndværk': ['Tømrer', 'Snedker', 'Murer', 'Maler', 'Elektriker', 'VVS', 'Blikkenslager', 'Gulvlægger',
     'Tagdækker', 'Smed', 'Glarmester', 'Flisemontør', 'Stukkatør', 'Køkkenmontage', 'Vinduesmontage'],
@@ -647,10 +647,6 @@ export const FAERDIGHEDER = {
     'Isolering', 'Facaderenovering', 'Badeværelsesrenovering', 'Tegningslæsning', 'Opmåling', 'Byggeledelse'],
   'Service': ['Rengøring', 'Vinduespudsning', 'Havearbejde', 'Snerydning', 'Flytning', 'Ejendomsservice',
     'Pedelarbejde', 'Montering af møbler', 'Kundeservice'],
-  'Kontor og økonomi': ['Bogføring', 'Fakturering', 'Lønadministration', 'Budgettering', 'Projektledelse',
-    'Tilbudsgivning', 'Indkøb', 'Excel', 'Salg', 'Administration'],
-  'IT og digitalt': ['Webudvikling', 'Programmering', 'IT-support', 'Netværk', 'Grafisk design', 'UX-design',
-    'Fotografering', 'Video', 'Sociale medier', 'Marketing', 'Tekstforfatning', 'SEO'],
   'Transport og maskiner': ['Kørekort B', 'Kørekort BE', 'Kørekort C', 'Kørekort CE', 'Trucklicens', 'Kranførerbevis',
     'Gravemaskine', 'Minilæsser', 'Liftcertifikat', 'Varelevering'],
   'Certifikater og sikkerhed': ['Førstehjælp', 'Arbejde i højden', 'Asbestkursus', 'Sikkerhedsrepræsentant',
@@ -662,6 +658,18 @@ export const MAKS_FAERDIGHEDER = 20;
 
 const faerdighedKategori = new Map(Object.entries(FAERDIGHEDER).flatMap(([k, liste]) => liste.map((f) => [f, k])));
 export const kendtFaerdighed = (f) => faerdighedKategori.has(f);
+export const MAKS_FAERDIGHED_LAENGDE = 40;
+
+// En færdighed, brugeren selv skriver: ryddet op, med stort forbogstav og højst 40 tegn.
+// Svarer den til en kendt (eller en af `andre`), bruges den stavemåde, så der ikke opstår
+// dubletter. Tom tekst giver ''.
+export function egenFaerdighed(tekst, andre = []) {
+  const ren = String(tekst ?? '').replace(/\s+/g, ' ').trim().slice(0, MAKS_FAERDIGHED_LAENGDE).trim();
+  if (!ren) return '';
+  const noegle = tilSoeg(ren);
+  const kendt = [...faerdighedKategori.keys(), ...andre].find((f) => tilSoeg(f) === noegle);
+  return kendt ?? ren[0].toLocaleUpperCase('da') + ren.slice(1);
+}
 
 // Rangerer navne efter søgeteksten som soegBrugere: begyndelse, så ordbegyndelse, så indhold.
 function rangerEfterSoegning(navne, tekst) {
@@ -679,10 +687,12 @@ function rangerEfterSoegning(navne, tekst) {
     .map((x) => x.n);
 }
 
-// Færdigheder, der passer til søgningen, uden dem, der allerede er valgt.
-export function soegFaerdigheder(tekst, valgte = [], max = 12) {
+// Færdigheder, der passer til søgningen, uden dem, der allerede er valgt. `ekstra` er
+// egne færdigheder, som andre har tilføjet.
+export function soegFaerdigheder(tekst, valgte = [], max = 12, ekstra = []) {
   const valgt = new Set(valgte);
-  return rangerEfterSoegning([...faerdighedKategori.keys()].filter((f) => !valgt.has(f)), tekst).slice(0, max);
+  const alle = new Set([...faerdighedKategori.keys(), ...ekstra]);
+  return rangerEfterSoegning([...alle].filter((f) => !valgt.has(f)), tekst).slice(0, max);
 }
 
 // Forslag ud fra de valgte og de andre brugeres færdigheder: dem, der ofte står sammen

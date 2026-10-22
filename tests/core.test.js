@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  nyeInvitationer, soegBrugere, soegFaerdigheder, foreslaaFaerdigheder, foedselsdagTekst, profilTal,
+  nyeInvitationer, soegBrugere, soegFaerdigheder, foreslaaFaerdigheder, egenFaerdighed, foedselsdagTekst, profilTal,
   durationMs, amountOf, formatDuration, formatKr, parseHours, validateEntry,
 } from '../core.js';
 
@@ -886,15 +886,28 @@ test('soegFaerdigheder: søger uden at vise valgte, begyndelse først', () => {
 });
 
 test('foreslaaFaerdigheder: det, der står sammen med de valgte, kommer først', () => {
-  const andre = [['Tømrer', 'Arbejde i højden'], ['Tømrer', 'Arbejde i højden'], ['Excel'], ['Excel'], ['Excel']];
+  const andre = [['Tømrer', 'Arbejde i højden'], ['Tømrer', 'Arbejde i højden'], ['Rengøring'], ['Rengøring'], ['Rengøring']];
   const f = foreslaaFaerdigheder(['Tømrer'], andre);
   assert.equal(f[0], 'Arbejde i højden');
   assert.ok(!f.includes('Tømrer'));
-  assert.equal(f[1], 'Excel');
+  assert.equal(f[1], 'Rengøring');
   assert.ok(f.includes('Blikkenslager'));
   assert.equal(foreslaaFaerdigheder([], [])[0], 'Anlægsgartner');
-  assert.equal(foreslaaFaerdigheder([], andre)[0], 'Excel');
+  assert.equal(foreslaaFaerdigheder([], andre)[0], 'Rengøring');
   assert.ok(!foreslaaFaerdigheder([], [['Fritekst']]).includes('Fritekst'));
+});
+
+test('soegFaerdigheder: finder også andres egne færdigheder', () => {
+  assert.deepEqual(soegFaerdigheder('sejl', [], 12, ['Sejlads']), ['Sejlads']);
+  assert.deepEqual(soegFaerdigheder('sejl', ['Sejlads'], 12, ['Sejlads']), []);
+});
+
+test('egenFaerdighed: rydder op og genbruger kendte stavemåder', () => {
+  assert.equal(egenFaerdighed('  sejlads   og  navigation '), 'Sejlads og navigation');
+  assert.equal(egenFaerdighed('tomrer'), 'Tømrer');
+  assert.equal(egenFaerdighed('SEJLADS', ['Sejlads']), 'Sejlads');
+  assert.equal(egenFaerdighed('   '), '');
+  assert.equal(egenFaerdighed('x'.repeat(60)).length, 40);
 });
 
 test('foedselsdagTekst: dato og alder', () => {

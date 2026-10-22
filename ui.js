@@ -30,6 +30,7 @@ const IKONER = {
   venstre: 'M15 5l-7 7 7 7',
   hoejre: 'M9 5l7 7-7 7',
   ned: 'M6 9l6 6 6-6',
+  kamera: 'M4 8h3l2-3h6l2 3h3v11H4zM12 16.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z',
   soeg: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM20 20l-4-4',
   kryds: 'M6 6l12 12M18 6L6 18',
   clips: 'M20 11.5l-8 8a5 5 0 0 1-7-7l8.5-8.5a3.5 3.5 0 0 1 5 5L10 17.5a2 2 0 0 1-3-3l7.5-7.5',
@@ -74,7 +75,10 @@ export function aabnArk(...args) {
   });
   traekNed(ark);
   document.body.append(ark);
+  // Fokus på selve arket, ikke Annullér, så der ikke står en fokusring ved åbning.
+  ark.tabIndex = -1;
   ark.showModal();
+  ark.focus();
   return ark;
 }
 
