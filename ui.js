@@ -49,24 +49,80 @@ export function ikon(navn) {
 
 // --- Ark ------------------------------------------------------------------------
 
-// Ark glider op fra bunden. Flere kan ligge oven på hinanden.
+// Ark glider op fra bunden og ned igen, når de lukkes. Flere kan ligge oven på
+// hinanden, og et ark kan trækkes ned for at lukke det.
 // aabnArk({ onLuk }, ...boern) eller aabnArk(...boern).
+const roligt = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+
 export function aabnArk(...args) {
   const valg = args[0] && !(args[0] instanceof Node) && !Array.isArray(args[0]) && typeof args[0] === 'object' ? args.shift() : {};
-  const ark = h('dialog', { class: 'ark' }, h('div', { class: 'ark-indhold' }, ...args));
+  const ark = h('dialog', { class: 'ark' }, h('div', { class: 'greb', 'aria-hidden': 'true' }), h('div', { class: 'ark-indhold' }, ...args));
+  // close() venter på, at arket er gledet ned, så alle, der lukker et ark, får animationen.
+  const luk = ark.close.bind(ark);
+  ark.close = (svar) => {
+    if (!ark.open || ark.classList.contains('lukker')) return;
+    if (roligt()) return luk(svar);
+    ark.classList.add('lukker');
+    ark.style.transform = '';
+    setTimeout(() => luk(svar), 220);
+  };
+  ark.addEventListener('cancel', (e) => { e.preventDefault(); ark.close(); });
   ark.addEventListener('click', (e) => { if (e.target === ark) ark.close(); });
   ark.addEventListener('close', () => {
     ark.remove();
     valg.onLuk?.();
   });
+  traekNed(ark);
   document.body.append(ark);
   ark.showModal();
   return ark;
 }
 
+// Træk arket ned fra toppen (når det ikke er rullet) for at lukke det.
+function traekNed(ark) {
+  let start = null, dy = 0;
+  ark.addEventListener('touchstart', (e) => {
+    const top = e.target.closest('.greb, .ark-top');
+    start = (top || ark.scrollTop <= 0) && !e.target.closest('input, textarea, .valgliste') ? e.touches[0].clientY : null;
+    dy = 0;
+  }, { passive: true });
+  ark.addEventListener('touchmove', (e) => {
+    if (start == null) return;
+    dy = Math.max(0, e.touches[0].clientY - start);
+    if (dy > 0 && ark.scrollTop <= 0) {
+      ark.classList.add('traekkes');
+      ark.style.transform = `translateY(${dy}px)`;
+    }
+  }, { passive: true });
+  ark.addEventListener('touchend', () => {
+    if (start == null) return;
+    start = null;
+    ark.classList.remove('traekkes');
+    if (dy > 110) ark.close();
+    else ark.style.transform = '';
+  });
+}
+
+// Kun en sektion, brugeren selv folder ud, animeres; ikke dem, der tegnes åbne.
+document.addEventListener('click', (e) => {
+  const d = e.target.closest('summary')?.parentElement;
+  if (d?.tagName !== 'DETAILS') return;
+  d.classList.add('folder');
+  setTimeout(() => d.classList.remove('folder'), 300);
+});
+
 export function lukArk() {
-  const aabne = document.querySelectorAll('dialog.ark[open]');
+  const aabne = document.querySelectorAll('dialog.ark[open]:not(.lukker)');
   aabne[aabne.length - 1]?.close();
+}
+
+// Indholdet glider ind ved skift af fane ('skift') eller ind og ud af en underside
+// ('frem' og 'tilbage').
+export function animerIndhold(retning = 'skift') {
+  const el = document.getElementById('indhold');
+  el.classList.remove('ind-skift', 'ind-frem', 'ind-tilbage');
+  void el.offsetWidth;
+  el.classList.add(`ind-${retning}`);
 }
 
 // Øverste række i et ark: Annullér · titel · handling.

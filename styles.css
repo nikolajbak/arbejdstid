@@ -18,6 +18,11 @@
   --skrift: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
   --top: env(safe-area-inset-top, 0px);
   --bund: env(safe-area-inset-bottom, 0px);
+  /* Bevægelse: iOS-lignende kurver, korte varigheder. */
+  --ud: cubic-bezier(0.32, 0.72, 0, 1);
+  --ind: cubic-bezier(0.4, 0, 1, 1);
+  --hurtig: 160ms;
+  --skygge: 0 1px 2px rgb(0 0 0 / 0.04), 0 4px 16px rgb(0 0 0 / 0.04);
 }
 
 [data-farve="skov"] { --k: #2F7D6B; }
@@ -332,7 +337,7 @@ textarea { min-height: 80px; resize: vertical; }
 .bjaelke span { background: var(--k); min-width: 3px; }
 .overblik details > summary { list-style: none; cursor: pointer; }
 .overblik details > summary::-webkit-details-marker { display: none; }
-.overblik details > summary .ikon-ned { transition: transform 0.15s; }
+.overblik details > summary .ikon-ned, .afregnet-liste > summary .ikon-ned { transition: transform 260ms var(--ud); }
 .overblik details[open] > summary .ikon-ned { transform: rotate(180deg); }
 .overblik .under-raekke { min-height: 44px; padding-left: 40px; color: var(--sek); font-size: 15px; }
 .overblik .fod { display: grid; gap: 4px; padding: 12px 16px 12px; border-top: 1px solid var(--linje); }
@@ -363,9 +368,18 @@ dialog.ark {
   color: var(--tekst);
   overflow: auto;
   overscroll-behavior: contain;
-  animation: op 200ms ease-out;
+  box-shadow: 0 -8px 40px rgb(0 0 0 / 0.12);
+  animation: op 420ms var(--ud);
+  transition: transform 300ms var(--ud), filter 300ms var(--ud);
 }
-dialog.ark::backdrop { background: rgb(0 0 0 / 0.35); animation: frem 200ms ease-out; }
+dialog.ark::backdrop { background: rgb(0 0 0 / 0.38); animation: frem 300ms var(--ud); }
+dialog.ark.lukker { animation: ned 220ms var(--ind) forwards; }
+dialog.ark.lukker::backdrop { animation: vaek 220ms var(--ind) forwards; }
+dialog.ark.traekkes { transition: none; }
+/* Et ark under et andet trækker sig lidt tilbage. */
+dialog.ark:has(~ dialog.ark[open]:not(.lukker)) { transform: scale(0.94) translateY(-10px); filter: brightness(0.92); }
+.greb { position: sticky; top: 0; z-index: 2; height: 0; display: flex; justify-content: center; }
+.greb::before { content: ''; width: 36px; height: 5px; margin-top: 6px; border-radius: 3px; background: var(--linje); }
 .ark-indhold { padding: 8px 16px calc(var(--bund) + 20px); display: grid; gap: 12px; }
 .ark-indhold > form { display: grid; gap: 12px; }
 .ark-indhold .knapper { margin-top: 4px; }
@@ -393,10 +407,21 @@ dialog.ark::backdrop { background: rgb(0 0 0 / 0.35); animation: frem 200ms ease
 .post-hvem { display: grid; gap: 12px; }
 
 @keyframes op { from { transform: translateY(100%); } }
+@keyframes ned { to { transform: translateY(100%); } }
 @keyframes frem { from { opacity: 0; } }
+@keyframes vaek { to { opacity: 0; } }
+@keyframes ind-skift { from { opacity: 0; transform: translateY(6px); } }
+@keyframes ind-frem { from { opacity: 0; transform: translateX(24px); } }
+@keyframes ind-tilbage { from { opacity: 0; transform: translateX(-24px); } }
+@keyframes fold-ud { from { opacity: 0; transform: translateY(-4px); } }
+
+#indhold.ind-skift { animation: ind-skift 260ms var(--ud); }
+#indhold.ind-frem { animation: ind-frem 300ms var(--ud); }
+#indhold.ind-tilbage { animation: ind-tilbage 300ms var(--ud); }
 
 @media (prefers-reduced-motion: reduce) {
-  dialog.ark, dialog.ark::backdrop, #besked { animation: none; transition: none; }
+  *, *::before, *::after, dialog.ark::backdrop { animation-duration: 1ms !important; transition-duration: 1ms !important; }
+  dialog.ark:has(~ dialog.ark[open]) { transform: none; }
 }
 
 /* --- Vælgerarket ---------------------------------------------------------------- */
@@ -426,7 +451,7 @@ dialog.ark::backdrop { background: rgb(0 0 0 / 0.35); animation: frem 200ms ease
   position: fixed;
   left: 50%;
   bottom: calc(var(--bund) + 84px);
-  transform: translate(-50%, 12px);
+  transform: translate(-50%, 16px) scale(0.96);
   max-width: calc(100% - 32px);
   padding: 12px 18px;
   border-radius: 999px;
@@ -436,13 +461,14 @@ dialog.ark::backdrop { background: rgb(0 0 0 / 0.35); animation: frem 200ms ease
   font-size: 15px;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 200ms, transform 200ms;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+  transition: opacity 200ms var(--ud), transform 360ms var(--ud);
   z-index: 10;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-#besked.vis { opacity: 1; transform: translate(-50%, 0); }
+#besked.vis { opacity: 1; transform: translate(-50%, 0) scale(1); }
 
 /* --- Faner --------------------------------------------------------------------- */
 
@@ -557,3 +583,38 @@ h3.dag .tal { color: var(--sek); font-weight: 500; }
 .kategori { border-top: 1px solid var(--linje); padding: 10px 4px; }
 .kategori summary { cursor: pointer; font-weight: 500; min-height: 32px; }
 .kategori .chips { margin-top: 8px; }
+
+/* --- Finish: tryk, fokus og overgange ------------------------------------------ */
+
+:focus-visible { outline: 2px solid var(--k); outline-offset: 2px; border-radius: 8px; }
+input:focus-visible, textarea:focus-visible { outline: none; }
+:where(input, textarea) { transition: border-color var(--hurtig), box-shadow var(--hurtig); }
+
+.kort, .tal-boks { box-shadow: 0 0 0 1px var(--linje), var(--skygge); }
+:where(.knap, .chip, .tekstknap, .farvevalg, .fortsaet, .periode .pil, .periode .navn, .faner button, .urkort .hvad, .sted) {
+  transition: transform var(--hurtig) var(--ud), opacity var(--hurtig), background-color 200ms, color 200ms, box-shadow 200ms;
+}
+:where(.knap, .chip, .farvevalg, .fortsaet, .periode .navn):active:not(:disabled) { transform: scale(0.97); }
+.knap:active { opacity: 0.88; }
+.tekstknap:active, .periode .pil:active, .sted:active { opacity: 0.55; }
+:where(button.raekke, summary.raekke, .raekke.klikbar, .raekke.opgave > .hoved) { transition: background-color 120ms; }
+.raekke.klikbar:active { background: var(--daempet); }
+@media (hover: hover) {
+  :where(button.raekke, summary.raekke, .raekke.klikbar):hover { background: var(--daempet); }
+  .knap:hover:not(:disabled) { filter: brightness(1.06); }
+  .chip:hover:not([aria-pressed="true"]) { box-shadow: inset 0 0 0 1px var(--sek); }
+}
+
+/* Fanebjælken: ikonet hopper let, når fanen vælges. */
+.faner button svg { transition: transform 300ms var(--ud); }
+.faner button:active svg { transform: scale(0.88); }
+.faner button[aria-current="page"] svg { transform: translateY(-1px); stroke-width: 2.1; }
+
+/* Foldbare sektioner folder blødt ud. */
+details.folder[open] > :not(summary) { animation: fold-ud 260ms var(--ud); }
+.kategori summary { list-style: none; display: flex; align-items: center; justify-content: space-between; }
+.kategori summary::-webkit-details-marker { display: none; }
+.kategori summary::after { content: ''; width: 8px; height: 8px; margin-right: 6px; border: solid var(--sek); border-width: 0 2px 2px 0; transform: rotate(45deg); transition: transform 260ms var(--ud); }
+.kategori[open] summary::after { transform: rotate(-135deg); }
+
+.urkort { transition: background-color 400ms var(--ud), color 400ms; }

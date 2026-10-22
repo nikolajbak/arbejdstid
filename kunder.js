@@ -2,7 +2,7 @@
 
 import { POST_TYPER, dayKey, formatDuration, formatKr, godkendte, kundeOversigt, personNavn, toCSV } from './core.js';
 import { t, render, gaaTil, kundePaa } from './tilstand.js';
-import { h, downloadFile, ikon, prik } from './ui.js';
+import { h, animerIndhold, downloadFile, ikon, prik } from './ui.js';
 import { aabnRegistrering, registreringsRaekke } from './registrering.js';
 import { aabnPost, postRaekke } from './post.js';
 import { redigerKunde } from './indstillinger.js';
@@ -18,7 +18,7 @@ export function aabnKunde(id) {
   gaaTil('kunder');
 }
 
-const vis = (id) => () => { valgt = id; render(); window.scrollTo(0, 0); };
+const vis = (id) => () => { valgt = id; render(); animerIndhold(id ? 'frem' : 'tilbage'); window.scrollTo(0, 0); };
 
 // Året vises kun, når det ikke er i år.
 const aar = (dag) => (dag.slice(0, 4) === String(new Date().getFullYear()) ? {} : { year: 'numeric' });

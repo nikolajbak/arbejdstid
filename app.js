@@ -10,7 +10,7 @@ import { startSky, migSted, teamSted } from './sky.js';
 import { lytMineTeams, sikrKatalog } from './team.js';
 import { t, commit, setRender, setSkift, setGaaTil, saetBasis, setVedBeskeder } from './tilstand.js';
 import { meld, koerKoe, forny, tilbydNotifikationer } from './push.js';
-import { h, felt, besked } from './ui.js';
+import { h, animerIndhold, felt, besked } from './ui.js';
 import { aabnSteder, visInvitationer } from './teamark.js';
 import { visTid } from './tid.js';
 import { visHistorik } from './historik.js';
@@ -33,9 +33,11 @@ if (!FANER[fane]) fane = 'tid';
 const indhold = document.getElementById('indhold');
 
 function skiftFane(ny) {
+  const ens = fane === ny;
   fane = ny;
   try { sessionStorage.setItem('arbejdstid.fane', ny); } catch {}
   render();
+  if (!ens) animerIndhold();
   window.scrollTo(0, 0);
 }
 
