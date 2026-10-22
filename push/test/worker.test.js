@@ -2,9 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { lavHandler } from '../src/index.js';
 
-const team = { navn: 'Holdet', medlemmer: ['mig', 'ven'], navne: { mig: 'Mig', ven: 'Ven' } };
+const team = { navn: 'Holdet', medlemmer: ['mig', 'ven'], navne: { mig: 'Mig', ven: 'Ven' }, inviterede: ['ny@x.dk'] };
 // En inviteret kan læse teamet i Firestore uden at stå i medlemmer.
-const inviteretTeam = { navn: 'Andet', medlemmer: ['ven'], navne: { ven: 'Ven' } };
+const inviteretTeam = { navn: 'Andet', medlemmer: ['ven'], navne: { ven: 'Ven' }, inviterede: ['mig@x.dk'] };
 
 function abo(endpoint) {
   return { endpoint, expirationTime: null, keys: { p256dh: 'p-' + endpoint, auth: 'a-' + endpoint } };
@@ -233,6 +233,48 @@ test('send: ingen abonnementer giver 200 { sendt: 0, fjernet: 0 }', async () => 
   const res = await handler(forespoergsel('/send', gyldigSend));
   assert.equal(res.status, 200);
   assert.deepEqual(await res.json(), { sendt: 0, fjernet: 0 });
+  assert.equal(kald.length, 0);
+});
+
+test('abonner husker uid på e-mailen', async () => {
+  const { handler, lager } = opsaet();
+  await handler(forespoergsel('/abonner', { abonnement: abo('https://p/1') }));
+  assert.equal(JSON.parse(lager.get('email:mig@x.dk')), 'mig');
+});
+
+test('inviter: sender til den inviterede, fundet på e-mailen', async () => {
+  const { handler, lager, kald } = opsaet();
+  lager.set('email:ny@x.dk', JSON.stringify('ny'));
+  lager.set('uid:ny', JSON.stringify([abo('https://p/ny')]));
+  const res = await handler(forespoergsel('/inviter', { teamId: 't1', email: 'Ny@x.dk', body: 'Hack' }));
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { sendt: 1, fjernet: 0 });
+  assert.equal(kald[0].abonnement.endpoint, 'https://p/ny');
+  assert.deepEqual(JSON.parse(kald[0].payload), {
+    title: 'Holdet',
+    body: 'Mig har inviteret dig til teamet Holdet. Tryk for at se invitationen.',
+    url: './?vis=invitationer',
+  });
+});
+
+test('inviter: ukendt e-mail giver 200 uden at sende', async () => {
+  const { handler, kald } = opsaet();
+  const res = await handler(forespoergsel('/inviter', { teamId: 't1', email: 'ny@x.dk' }));
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { sendt: 0, fjernet: 0 });
+  assert.equal(kald.length, 0);
+});
+
+test('inviter: 400 når e-mailen ikke er inviteret, 403 når afsenderen ikke er medlem', async () => {
+  const { handler, lager, kald } = opsaet();
+  lager.set('email:ven@x.dk', JSON.stringify('ven'));
+  lager.set('uid:ven', JSON.stringify([abo('https://p/ven')]));
+  let res = await handler(forespoergsel('/inviter', { teamId: 't1', email: 'ven@x.dk' }));
+  assert.equal(res.status, 400);
+  res = await handler(forespoergsel('/inviter', { teamId: 't3', email: 'mig@x.dk' }));
+  assert.equal(res.status, 403);
+  res = await handler(forespoergsel('/inviter', { teamId: 't1' }));
+  assert.equal(res.status, 400);
   assert.equal(kald.length, 0);
 });
 

@@ -611,6 +611,17 @@ export function normaliserEmail(s) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) ? e : null;
 }
 
+// Invitationer, brugeren ikke har fået vist på denne enhed, og de id'er, der
+// skal huskes som sete. Kun nuværende invitationer huskes, så en ny invitation
+// til et team, man har forladt, vises igen.
+export function nyeInvitationer(invitationer, sete) {
+  const kendte = new Set(sete);
+  return {
+    nye: invitationer.filter((x) => !kendte.has(x.id)),
+    sete: invitationer.map((x) => x.id),
+  };
+}
+
 // Et mailto-link med en færdig invitation, som åbnes i brugerens egen mailapp.
 // Appen sender ikke selv mails. encodeURIComponent giver %20 for mellemrum;
 // et + ville stå som + i flere mailapps.

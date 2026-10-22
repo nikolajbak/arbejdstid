@@ -1,5 +1,6 @@
 // Push-worker: gemmer Web Push-abonnementer pr. bruger og sender beskeder til
-// teammedlemmer om registreringer, der venter på dem. Afsenderen er altid
+// teammedlemmer om registreringer, der venter på dem, og til inviterede om
+// invitationer til et team. Afsenderen er altid
 // uid'en fra det verificerede token, og teksten laves her, så et medlem ikke
 // kan sende fri tekst. Læser også kvitteringer for indloggede brugere.
 import { lavVerificer } from './token.js';
@@ -21,7 +22,7 @@ function svar(status, krop) {
   });
 }
 
-const RUTER = { 'POST /abonner': abonner, 'DELETE /abonner': afmeld, 'POST /send': send, 'POST /kvittering': kvittering };
+const RUTER = { 'POST /abonner': abonner, 'DELETE /abonner': afmeld, 'POST /send': send, 'POST /inviter': inviter, 'POST /kvittering': kvittering };
 
 // Appen gemmer billeder under 900.000 tegn; lidt luft til andre data-URL'er.
 const MAKS_BILLEDE = 1_200_000;
@@ -32,6 +33,8 @@ const TEKSTER = {
 };
 
 const noegle = (uid) => 'uid:' + uid;
+// Fra e-mail til uid, så en inviteret kan findes på den e-mail, invitationen har.
+const emailNoegle = (email) => 'email:' + email.toLowerCase();
 const ikkeTom = (v) => typeof v === 'string' && v !== '';
 
 async function hentAbonnementer(kv, uid) {
@@ -53,6 +56,7 @@ async function abonner({ kv, bruger, krop }) {
   const liste = (await hentAbonnementer(kv, bruger.uid)).filter((x) => x.endpoint !== abonnement.endpoint);
   liste.push(abonnement);
   await kv.put(noegle(bruger.uid), JSON.stringify(liste));
+  if (ikkeTom(bruger.email)) await kv.put(emailNoegle(bruger.email), JSON.stringify(bruger.uid));
   return svar(200, { ok: true });
 }
 
@@ -69,14 +73,8 @@ async function send({ kv, hentTeam, sendPush, bruger, token, krop }) {
     || !Number.isInteger(antal) || antal < 1 || antal > 100) {
     return svar(400, { fejl: 'ugyldigt input' });
   }
-  let team;
-  try {
-    team = await hentTeam(teamId, token);
-  } catch {
-    return svar(502, { fejl: 'Firestore svarede ikke' });
-  }
-  // En inviteret kan læse teamet uden at være medlem, så medlemskab tjekkes her.
-  if (!team || !team.medlemmer.includes(bruger.uid)) return svar(403, { fejl: 'ingen adgang til teamet' });
+  const { team, fejl } = await medlemsTeam(hentTeam, teamId, token, bruger.uid);
+  if (fejl) return fejl;
   if (til === bruger.uid || !team.medlemmer.includes(til)) return svar(400, { fejl: 'ugyldig modtager' });
 
   const afsender = team.navne[bruger.uid] || bruger.email || 'Et medlem';
@@ -86,6 +84,24 @@ async function send({ kv, hentTeam, sendPush, bruger, token, krop }) {
     url: `./?team=${encodeURIComponent(teamId)}` + (slags === 'afventer' ? '&vis=godkend' : ''),
   });
 
+  return svar(200, await skub(kv, sendPush, til, payload));
+}
+
+// Henter teamet og tjekker, at afsenderen er medlem. Giver { team } eller { fejl }.
+async function medlemsTeam(hentTeam, teamId, token, uid) {
+  let team;
+  try {
+    team = await hentTeam(teamId, token);
+  } catch {
+    return { fejl: svar(502, { fejl: 'Firestore svarede ikke' }) };
+  }
+  // En inviteret kan læse teamet uden at være medlem, så medlemskab tjekkes her.
+  if (!team || !team.medlemmer.includes(uid)) return { fejl: svar(403, { fejl: 'ingen adgang til teamet' }) };
+  return { team };
+}
+
+// Sender til alle modtagerens enheder og rydder døde abonnementer op.
+async function skub(kv, sendPush, til, payload) {
   const liste = await hentAbonnementer(kv, til);
   let sendt = 0;
   const doede = new Set();
@@ -103,7 +119,27 @@ async function send({ kv, hentTeam, sendPush, bruger, token, krop }) {
     const nu = await hentAbonnementer(kv, til);
     await kv.put(noegle(til), JSON.stringify(nu.filter((x) => !doede.has(x.endpoint))));
   }
-  return svar(200, { sendt, fjernet: doede.size });
+  return { sendt, fjernet: doede.size };
+}
+
+// Besked til en inviteret, der allerede bruger appen. Kun en e-mail, der står
+// på teamets liste over inviterede, kan få beskeden.
+async function inviter({ kv, hentTeam, sendPush, bruger, token, krop }) {
+  const { teamId, email } = krop;
+  if (!ikkeTom(teamId) || !ikkeTom(email)) return svar(400, { fejl: 'ugyldigt input' });
+  const { team, fejl } = await medlemsTeam(hentTeam, teamId, token, bruger.uid);
+  if (fejl) return fejl;
+  if (!team.inviterede.includes(email.toLowerCase())) return svar(400, { fejl: 'ikke inviteret' });
+  const til = await kv.get(emailNoegle(email), 'json');
+  // Uden notifikationer slået til ser personen invitationen, næste gang appen åbnes.
+  if (!ikkeTom(til) || team.medlemmer.includes(til)) return svar(200, { sendt: 0, fjernet: 0 });
+  const afsender = team.navne[bruger.uid] || bruger.email || 'Et medlem';
+  const payload = JSON.stringify({
+    title: team.navn,
+    body: `${afsender} har inviteret dig til teamet ${team.navn}. Tryk for at se invitationen.`,
+    url: './?vis=invitationer',
+  });
+  return svar(200, await skub(kv, sendPush, til, payload));
 }
 
 // Billedet kommer som data-URL, som appen også gemmer det.

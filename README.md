@@ -37,7 +37,10 @@ få et overblik og en CSV-fil til fakturering.
   starter et ur eller tilføjer tid, vælger du, hvem tiden gælder for; et ur for
   flere giver én registrering pr. person. Historik kan filtreres på person, og
   CSV'en får kolonnen Person. Under Indstillinger → Team inviterer du på
-  e-mail (personen skal være godkendt til appen), retter navne, fjerner
+  e-mail (personen skal være godkendt til appen). Bruger personen allerede
+  appen, får den invitationen som besked i appen og som notifikation, hvis
+  notifikationer er slået til; ellers sender du en e-mail med **Send e-mail**.
+  Her retter du også navne, fjerner
   medlemmer, melder dig ud og flytter dine egne data ind i teamet. Flytningen
   gemmer først en backup og tømmer derefter Mig. **Tilføj fra Mig** tager kun
   de kunder og opgaver, du vælger: kunderne flyttes med deres tid og poster,

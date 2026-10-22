@@ -1,4 +1,4 @@
-// Push-beskeder om godkendelse: abonnement på enheden, status til Indstillinger og
+// Push-beskeder om godkendelse og team-invitationer: abonnement på enheden, status til Indstillinger og
 // afsendelse gennem køen i pushkoe.js, så intet går tabt uden net.
 
 import { auth } from './firebase.js';
@@ -109,6 +109,7 @@ export async function koerKoe() {
       await koeSend(lager, async (b) => {
         // En anden brugers beskeder bliver liggende, til den bruger logger ind igen.
         if (!uid || b.fra !== uid) throw new Error('anden bruger');
+        if (b.slags === 'invitation') return kald('POST', '/inviter', { teamId: b.teamId, email: b.til });
         return kald('POST', '/send', { teamId: b.teamId, til: b.til, slags: b.slags, antal: b.antal });
       }, Date.now());
     } while (igen);
@@ -137,4 +138,11 @@ export function meld(beskeder) {
   }
   koerKoe();
   if (beskeder.some((b) => b.slags === 'afventer')) visTip().catch(console.error);
+}
+
+// Giver en inviteret, der allerede bruger appen, en notifikation om invitationen.
+export function meldInvitation(teamId, email) {
+  if (!PUSH_URL) return;
+  koeTilfoej(lager, { teamId, til: email, slags: 'invitation', antal: 1, fra: t.bruger.uid }, Date.now());
+  koerKoe();
 }
