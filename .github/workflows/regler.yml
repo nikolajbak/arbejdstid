@@ -1,0 +1,40 @@
+# Udgiver firestore.rules til Firebase, når filen ændres på main, efter regeltestene.
+# Kræver repo-secret FIREBASE_SERVICE_ACCOUNT: JSON-nøglen for en servicekonto med
+# rollerne »Firebase Rules Admin« og »Service Usage Consumer« i arbejdstid-dfdc6.
+name: Regler
+
+on:
+  push:
+    branches: [main]
+    paths: ['firestore.rules', 'tests/regler/**', '.github/workflows/regler.yml']
+  workflow_dispatch:
+
+concurrency: regler
+
+jobs:
+  udgiv:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - run: npm run test:regler
+      - name: Tjek secret
+        env:
+          NOEGLE: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$NOEGLE" ]; then
+            echo "::error::Mangler FIREBASE_SERVICE_ACCOUNT under Settings → Secrets and variables → Actions"
+            exit 1
+          fi
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      - run: npx firebase deploy --only firestore:rules --project arbejdstid-dfdc6 --non-interactive

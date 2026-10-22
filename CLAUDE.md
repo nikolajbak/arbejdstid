@@ -45,10 +45,12 @@ cd push && npx wrangler dev --port 8787    # workeren lokalt (kræver push/.dev.
   workeren henter netværk først og genindlæser selv ved ændrede filer.
   **En ny `.js`-fil skal med i `FILER` i `sw.js`**, ellers virker den ikke
   offline.
-- **`firestore.rules`:** udgives separat, hver gang filen ændres —
-  `npx firebase deploy --only firestore:rules --project arbejdstid-dfdc6`
-  (kræver `npx firebase login`) eller i konsollen. Udgives reglerne ikke,
-  afviser Firestore de nye felter. Udgiv reglerne før den kode, der bruger dem.
+- **`firestore.rules`:** udgives af GitHub Actions (`.github/workflows/regler.yml`),
+  når filen ændres på `main`, efter regeltestene. Kræver repo-secret
+  `FIREBASE_SERVICE_ACCOUNT`. Udgives reglerne ikke, afviser Firestore de nye
+  felter — appen udgives samtidig, så tjek at workflowet »Regler« er grønt.
+  Manuelt: kør workflowet eller
+  `npx firebase deploy --only firestore:rules --project arbejdstid-dfdc6`.
 - **Workeren:** udgives af GitHub Actions (`.github/workflows/worker.yml`), når
   `push/` ændres på `main`, efter workerens tests. Kræver repo-secrets
   `CLOUDFLARE_API_TOKEN` og `CLOUDFLARE_ACCOUNT_ID`. Manuelt: kør workflowet
