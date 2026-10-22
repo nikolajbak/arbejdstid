@@ -152,6 +152,20 @@ export function besked(tekst) {
 
 // --- Små komponenter --------------------------------------------------------------
 
+// En sektion, der foldes sammen og ud med en glidende højde. Bruges i stedet for
+// <details>, som ikke animerer og opfører sig forskelligt i Safari.
+export function foldbar(titel, indhold, { aaben = true, klasse = '', onSkift } = {}) {
+  const krop = h('div', { class: 'fold-krop' }, h('div', {}, indhold));
+  const knap = h('button', { type: 'button', class: 'fold-top', 'aria-expanded': String(aaben) }, h('span', {}, titel));
+  const el = h('div', { class: `fold ${klasse}${aaben ? '' : ' lukket'}` }, knap, krop);
+  knap.addEventListener('click', () => {
+    const nu = el.classList.toggle('lukket');
+    knap.setAttribute('aria-expanded', String(!nu));
+    onSkift?.(!nu);
+  });
+  return el;
+}
+
 export function felt(etiket, input) {
   return h('label', { class: 'felt' }, h('span', {}, etiket), input);
 }

@@ -590,12 +590,11 @@ dialog.ark:focus, dialog.ark:focus-visible { outline: none; }
 .tal-gitter { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .tal-boks { display: grid; gap: 2px; padding: 12px 14px; border-radius: 14px; background: var(--flade); box-shadow: 0 0 0 1px var(--linje); }
 .tal-stor { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.kategori { border-top: 1px solid var(--linje); padding: 10px 4px; }
-.kategori summary { cursor: pointer; font-weight: 500; min-height: 32px; }
+.kategori { border-top: 1px solid var(--linje); padding: 6px 4px; }
+.kategori .chips { padding: 8px 2px 4px; }
 .forslag { display: grid; gap: 10px; }
 .kategori.valgte { border-top: 0; padding-top: 0; }
 .kategori.valgte .hjaelp { margin: 8px 4px 0; font-size: 13px; }
-.kategori .chips { margin-top: 8px; }
 
 /* --- Finish: tryk, fokus og overgange ------------------------------------------ */
 
@@ -625,9 +624,15 @@ input:focus-visible, textarea:focus-visible { outline: none; }
 
 /* Foldbare sektioner folder blødt ud. */
 details.folder[open] > :not(summary) { animation: fold-ud 260ms var(--ud); }
-.kategori summary { list-style: none; display: flex; align-items: center; justify-content: space-between; }
-.kategori summary::-webkit-details-marker { display: none; }
-.kategori summary::after { content: ''; width: 8px; height: 8px; margin-right: 6px; border: solid var(--sek); border-width: 0 2px 2px 0; transform: rotate(45deg); transition: transform 260ms var(--ud); }
-.kategori[open] summary::after { transform: rotate(-135deg); }
+/* Foldbare sektioner (foldbar i ui.js): højden glider, pilen drejer. */
+.fold-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 44px; text-align: left; font-weight: 500; }
+.fold-top > span { display: flex; align-items: baseline; gap: 4px; min-width: 0; }
+.fold-top::after { content: ''; flex: none; width: 8px; height: 8px; margin: 0 8px 4px 0; border: solid var(--sek); border-width: 0 2px 2px 0; transform: rotate(-135deg); transition: transform 280ms var(--ud); }
+.fold.lukket > .fold-top::after { transform: rotate(45deg) translate(-2px, -2px); }
+.fold-krop { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 300ms var(--ud), opacity 220ms, visibility 0s; }
+.fold-krop > div { min-height: 0; overflow: hidden; }
+.fold.lukket > .fold-krop { grid-template-rows: 0fr; opacity: 0; visibility: hidden; transition: grid-template-rows 300ms var(--ud), opacity 220ms, visibility 0s 300ms; }
+.fold.sektion { margin-top: 8px; }
+.fold.sektion > .fold-top { padding: 0 0 0 4px; }
 
 .urkort { transition: background-color 400ms var(--ud), color 400ms; }
