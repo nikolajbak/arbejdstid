@@ -79,6 +79,18 @@ export async function slaaTil() {
   }
 }
 
+// Gentilmelder enheden ved hver opstart, når notifikationer allerede er tilladt, så
+// workeren altid kender abonnementet og e-mailen (fx til invitationer) uden et tryk.
+export async function forny() {
+  if (!PUSH_URL || !understoettet() || Notification.permission !== 'granted') return;
+  try {
+    const ab = await abonnement();
+    if (ab) await kald('POST', '/abonner', { abonnement: ab.toJSON() });
+  } catch (err) {
+    console.error(err);
+  }
+}
+
 // Afmelder enheden. Workeren fjerner abonnementet af sig selv, hvis kaldet ikke når frem.
 export async function slaaFra() {
   if (!understoettet()) return;
