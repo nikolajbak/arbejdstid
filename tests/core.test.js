@@ -825,3 +825,28 @@ test('moms: kunder med moms betaler 25 % oven i tiden, udgifter er uændrede', (
   assert.equal(validateBackup({ version: 1, kunder: [{ ...kunder[0], moms: 'ja' }], opgavetyper: [], registreringer: [] }).ok, false);
   assert.equal(validateBackup({ version: 1, kunder, opgavetyper: [], registreringer: [] }).ok, true);
 });
+
+// --- Opgaver på en kunde: idé, godkendt, udført --------------------------------
+
+const opg = (id, kundeId, niveau = 'ide') => ({ id, kundeId, titel: `Opgave ${id}`, niveau, dato: '2026-10-22', note: '' });
+
+test('opgaver synkroniseres, flettes med deres kunde og følger kunden til et team', () => {
+  assert.deepEqual(forskel(tom(), { ...tom(), opgaver: [{ ...opg('o1', 'a'), note: undefined }] }),
+    [{ type: 'set', samling: 'opgaver', id: 'o1', data: { kundeId: 'a', titel: 'Opgave o1', niveau: 'ide', dato: '2026-10-22', note: '' } }]);
+  const f = flet({ ...tom(), kunder: [k('l1', 'acme')], opgaver: [opg('o1', 'l1'), opg('o2', 'l1')] },
+    { ...tom(), kunder: [k('k1', 'ACME')], opgaver: [opg('o1', 'k1', 'udfoert')] });
+  assert.deepEqual(f.opgaver.map((o) => [o.id, o.kundeId, o.niveau]), [['o1', 'k1', 'udfoert'], ['o2', 'k1', 'ide']]);
+  const mig = { ...tom(), kunder: [k('l1', 'acme'), k('l2', 'Bliver')], poster: [], opgaver: [opg('o1', 'l1'), opg('o2', 'l2')], skjult: {} };
+  const team = { ...tom(), kunder: [k('k1', 'ACME')], poster: [], opgaver: [], skjult: {} };
+  const r = flytUdvalgtTilTeam(mig, team, 'u1', { kunder: ['l1'], opgavetyper: [] });
+  assert.deepEqual(r.team.opgaver.map((o) => [o.id, o.kundeId]), [['o1', 'k1']]);
+  assert.deepEqual(r.mig.opgaver.map((o) => o.id), ['o2']);
+});
+
+test('validateBackup tager opgaver med og afviser et ukendt niveau', () => {
+  const backup = (opgaver) => ({ version: 1, kunder: [], opgavetyper: [], registreringer: [], opgaver });
+  assert.deepEqual(validateBackup({ version: 1, kunder: [], opgavetyper: [], registreringer: [] }).data.opgaver, []);
+  assert.equal(validateBackup(backup([opg('o1', 'a', 'godkendt')])).ok, true);
+  assert.equal(validateBackup(backup([opg('o1', 'a', 'maaske')])).ok, false);
+  assert.equal(validateBackup(backup([{ ...opg('o1', 'a'), titel: '' }])).ok, false);
+});

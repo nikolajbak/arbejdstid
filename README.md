@@ -62,6 +62,13 @@ få et overblik og en CSV-fil til fakturering.
   afregnede. Herfra tilføjes tid med start og slut (kunden er valgt på
   forhånd), registreres en betaling, det udestående eksporteres som
   CSV, og kunden kan redigeres.
+- **Opgaveliste pr. kunde:** øverst på kundesiden noteres fremtidige opgaver
+  i tre niveauer. **Ny idé** skriver en tanke ned; **Godkend** flytter den til
+  *Godkendt til udførsel*, og **Udført** lægger den blandt de udførte, der er
+  foldet sammen nederst i listen. Datoen viser, hvornår opgaven nåede sit
+  niveau. Tryk på en opgave for at rette den, skifte niveau eller slette den.
+  Opgaverne følger kunden, når den flyttes til et team, og kommer med i
+  backuppen.
 - **Indstillinger:** kunder (navn, timepris, farve), opgavetyper, og under Mere:
   Brugere (administratorer), Backup, Notifikationer og Konto.
 

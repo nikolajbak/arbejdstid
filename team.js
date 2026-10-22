@@ -7,7 +7,7 @@ import {
 import { db } from './firebase.js';
 import { flytTilTeam, flytUdvalgtTilTeam, forskel, normaliserEmail } from './core.js';
 
-const SAMLINGER = ['kunder', 'opgavetyper', 'registreringer', 'poster'];
+const SAMLINGER = ['kunder', 'opgavetyper', 'registreringer', 'poster', 'opgaver'];
 const team = (id) => doc(db, 'teams', id);
 const efterNavn = (a, b) => a.navn.localeCompare(b.navn, 'da');
 
@@ -94,7 +94,7 @@ export async function flytData(mig, teamSted, uid) {
   const { tilstand, antal } = flytTilTeam(mig.data, teamData, uid);
   await skriv(teamSted.data, forskel(teamData, tilstand).filter((op) => op.samling));
   const bilag = await kopierBilag(mig.sted.data, teamSted.data, mig.data.poster ?? []);
-  const tom = { ...mig.data, kunder: [], opgavetyper: [], registreringer: [], poster: [] };
+  const tom = { ...mig.data, kunder: [], opgavetyper: [], registreringer: [], poster: [], opgaver: [] };
   await skriv(mig.sted.data, forskel(mig.data, tom).filter((op) => op.samling));
   await sletBilag(mig.sted.data, bilag);
   return antal;

@@ -328,3 +328,16 @@ test('poster: personen godkender, andre kan ikke rette en ventende, og en fjerne
   await assertFails(setDoc(doc(ven(), 'teams/t1/poster/p2'), tPost({ person: 'tre', note: 'x' })));
   await assertSucceeds(setDoc(doc(ven(), 'teams/t1/poster/g1'), tPost({ person: 'gammel', afventer: true, oprettetAf: 'ven', note: 'rettet' })));
 });
+
+test('opgaver på en kunde valideres, for Mig og i et team', async () => {
+  const opgave = { kundeId: 'k1', titel: 'Nyt tag', niveau: 'ide', dato: '2026-10-22', note: '' };
+  await assertSucceeds(setDoc(doc(ven(), 'brugere/ven/opgaver/o1'), opgave));
+  await assertSucceeds(setDoc(doc(ven(), 'brugere/ven/opgaver/o1'), { ...opgave, niveau: 'udfoert' }));
+  await assertFails(setDoc(doc(ven(), 'brugere/ven/opgaver/o2'), { ...opgave, niveau: 'maaske' }));
+  await assertFails(setDoc(doc(ven(), 'brugere/ven/opgaver/o3'), { ...opgave, titel: '' }));
+  await assertFails(setDoc(doc(ven(), 'brugere/ven/opgaver/o4'), { ...opgave, ekstra: 1 }));
+  await assertFails(setDoc(doc(admin(), 'brugere/ven/opgaver/o5'), opgave));
+  await medTeam();
+  await assertSucceeds(setDoc(doc(ven(), 'teams/t1/opgaver/o1'), { ...opgave, niveau: 'godkendt' }));
+  await assertFails(setDoc(doc(admin(), 'teams/t1/opgaver/o2'), opgave));
+});

@@ -13,6 +13,7 @@ export function defaultData() {
     opgavetyper: [],
     registreringer: [],
     poster: [],
+    opgaver: [],
     ur: null,
     skjult: {},
   };

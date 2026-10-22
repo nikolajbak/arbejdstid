@@ -506,6 +506,12 @@ h2.sektion-top { display: flex; }
 .tekstknap.tilbage { margin: 0 0 4px -6px; color: var(--tekst); }
 .raekke .under .aaben { color: var(--tekst); font-weight: 600; }
 .afregnet-liste { margin-top: 24px; }
+/* Opgaveliste: rækken åbner opgaven, knappen flytter den et niveau frem. */
+.raekke.opgave { padding: 0 12px 0 0; }
+.raekke.opgave > .hoved { align-self: stretch; justify-content: center; padding: 10px 0 10px 16px; text-align: left; }
+.raekke.opgave > .hoved:active { background: var(--daempet); }
+.raekke.opgave > .knap { flex: none; }
+h3.dag .tal { color: var(--sek); font-weight: 500; }
 .afregnet-liste > summary { list-style: none; cursor: pointer; color: var(--sek); padding: 0 4px; }
 .afregnet-liste > summary::-webkit-details-marker { display: none; }
 .afregnet-liste[open] > summary .ikon-ned { transform: rotate(180deg); }

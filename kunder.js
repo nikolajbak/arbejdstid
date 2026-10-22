@@ -1,4 +1,4 @@
-// Fanen Kunder: hvad hver kunde skylder, og pr. kunde opgaver, udestående og afregninger.
+// Fanen Kunder: hvad hver kunde skylder, og pr. kunde opgaveliste, tid, udestående og afregninger.
 
 import { POST_TYPER, dayKey, formatDuration, formatKr, godkendte, kundeOversigt, personNavn, toCSV } from './core.js';
 import { t, render, gaaTil, kundePaa } from './tilstand.js';
@@ -6,6 +6,7 @@ import { h, downloadFile, ikon, prik } from './ui.js';
 import { aabnRegistrering, registreringsRaekke } from './registrering.js';
 import { aabnPost, postRaekke } from './post.js';
 import { redigerKunde } from './indstillinger.js';
+import { opgaveListe } from './opgave.js';
 
 // Den åbne kunde, eller null for listen. Nulstilles ved skift af arbejdssted.
 let valgt = null;
@@ -118,7 +119,10 @@ function kundeSide(id) {
       ),
     ),
 
-    sektion('Opgaver', msIAlt > 0 && formatDuration(msIAlt)),
+    sektion('Opgaveliste'),
+    opgaveListe(id, !!kunde),
+
+    sektion('Tid pr. opgave', msIAlt > 0 && formatDuration(msIAlt)),
     o.opgaver.length
       ? h('div', { class: 'kort' }, o.opgaver.map((x) => h('div', { class: 'raekke' },
         h('span', { class: 'hoved' },

@@ -29,6 +29,9 @@ export function kvitteringNote(k) {
 
 export const POST_TYPER = { udgift: 'Udgift', braendstof: 'Brændstof', kontant: 'Kontantudlæg', betaling: 'Betaling' };
 
+// Opgaver på en kunde går fra idé over godkendt til udført, i den rækkefølge.
+export const OPGAVE_NIVEAUER = { ide: 'Idé', godkendt: 'Godkendt', udfoert: 'Udført' };
+
 // Udgifter lægges til det, kunden skylder; kontanter og betalinger trækkes fra.
 export function postBeloeb(p) {
   return p.type === 'kontant' || p.type === 'betaling' ? -p.beloeb : p.beloeb;
@@ -462,6 +465,8 @@ const gyldigReg = (r) => r && erTekst(r.id) && erTekst(r.kundeId) && erTekst(r.o
 const gyldigPost = (p) => p && erTekst(p.id) && erTekst(p.kundeId) && p.type in POST_TYPER
   && erTekst(p.dato) && /^\d{4}-\d{2}-\d{2}$/.test(p.dato) && erTal(p.beloeb) && p.beloeb > 0 && erValgfriTekst(p.note)
   && (p.bilag == null || typeof p.bilag === 'boolean') && (p.moms == null || (erTal(p.moms) && p.moms <= p.beloeb));
+const gyldigOpgave = (o) => o && erTekst(o.id) && erTekst(o.kundeId) && erTekst(o.titel) && o.titel.length > 0
+  && o.niveau in OPGAVE_NIVEAUER && erTekst(o.dato) && /^\d{4}-\d{2}-\d{2}$/.test(o.dato) && erValgfriTekst(o.note);
 const gyldigtUr = (u) => u == null
   || (erTekst(u.kundeId) && erTekst(u.opgavetypeId) && erDato(u.start) && erValgfriTekst(u.note));
 
@@ -474,20 +479,22 @@ export function validateBackup(obj) {
   // Ældre backups har ingen poster.
   const poster = obj.poster ?? [];
   if (!Array.isArray(poster) || !poster.every(gyldigPost)) return fejl;
+  const opgaver = obj.opgaver ?? [];
+  if (!Array.isArray(opgaver) || !opgaver.every(gyldigOpgave)) return fejl;
   // En ukendt farve fjernes; databasen tager kun imod de otte nøgler.
   const kunder = obj.kunder.map(({ farve, ...k }) => (FARVER.includes(farve) ? { ...k, farve } : k));
   const skjult = obj.skjult && typeof obj.skjult === 'object' && !Array.isArray(obj.skjult)
     && Object.values(obj.skjult).every((v) => typeof v === 'string') ? obj.skjult : {};
-  return { ok: true, data: { ...obj, kunder, poster, ur: obj.ur ?? null, skjult } };
+  return { ok: true, data: { ...obj, kunder, poster, opgaver, ur: obj.ur ?? null, skjult } };
 }
 
 // --- Synkronisering med skyen ------------------------------------------------
 
-const SAMLINGER = ['kunder', 'opgavetyper', 'registreringer', 'poster'];
+const SAMLINGER = ['kunder', 'opgavetyper', 'registreringer', 'poster', 'opgaver'];
 
 // Udfylder felter, som ældre data kan mangle, så de består databasens regler.
 function rens(samling, { id, ...data }) {
-  if (samling === 'registreringer' || samling === 'poster') return { ...data, note: data.note ?? '' };
+  if (samling === 'registreringer' || samling === 'poster' || samling === 'opgaver') return { ...data, note: data.note ?? '' };
   return { ...data, arkiveret: !!data.arkiveret };
 }
 
@@ -530,7 +537,7 @@ export function flytTilTeam(mig, team, uid) {
   };
 }
 
-// Flytter udvalgte kunder fra Mig til et team med deres registreringer og poster,
+// Flytter udvalgte kunder fra Mig til et team med deres registreringer, poster og opgaver,
 // og kopierer udvalgte opgavetyper. Opgavetyper, som den flyttede tid bruger,
 // kopieres med. Mig beholder alle opgavetyper. Kan køres igen uden dubletter.
 export function flytUdvalgtTilTeam(mig, team, uid, valg) {
@@ -543,6 +550,7 @@ export function flytUdvalgtTilTeam(mig, team, uid, valg) {
     opgavetyper: mig.opgavetyper.filter((x) => typer.has(x.id)),
     registreringer,
     poster,
+    opgaver: (mig.opgaver ?? []).filter((o) => kunder.has(o.kundeId)),
     ur: null,
   };
   const { tilstand, antal } = flytTilTeam(del, team, uid);
@@ -553,6 +561,7 @@ export function flytUdvalgtTilTeam(mig, team, uid, valg) {
       kunder: mig.kunder.filter((x) => !kunder.has(x.id)),
       registreringer: mig.registreringer.filter((r) => !kunder.has(r.kundeId)),
       poster: (mig.poster ?? []).filter((p) => !kunder.has(p.kundeId)),
+      opgaver: (mig.opgaver ?? []).filter((o) => !kunder.has(o.kundeId)),
     } : mig,
     antal,
   };
@@ -574,6 +583,13 @@ export function flet(lokal, konto) {
   const [kunder, kundeId] = flettet('kunder');
   const [opgavetyper, typeId] = flettet('opgavetyper');
   const kendte = new Set(konto.registreringer.map((r) => r.id));
+  // Poster og opgaver følger deres kunde; kendte id'er springes over.
+  const medKunde = (samling) => [
+    ...(konto[samling] ?? []),
+    ...(lokal[samling] ?? [])
+      .filter((x) => !(konto[samling] ?? []).some((y) => y.id === x.id))
+      .map((x) => ({ ...x, kundeId: kundeId.get(x.kundeId) ?? x.kundeId })),
+  ];
   const omskriv = (x) => ({
     ...x,
     kundeId: kundeId.get(x.kundeId) ?? x.kundeId,
@@ -583,12 +599,8 @@ export function flet(lokal, konto) {
     kunder,
     opgavetyper,
     registreringer: [...konto.registreringer, ...lokal.registreringer.filter((r) => !kendte.has(r.id)).map(omskriv)],
-    poster: [
-      ...(konto.poster ?? []),
-      ...(lokal.poster ?? [])
-        .filter((p) => !(konto.poster ?? []).some((x) => x.id === p.id))
-        .map((p) => ({ ...p, kundeId: kundeId.get(p.kundeId) ?? p.kundeId })),
-    ],
+    poster: medKunde('poster'),
+    opgaver: medKunde('opgaver'),
     ur: konto.ur ?? (lokal.ur ? omskriv(lokal.ur) : null),
     skjult: konto.skjult ?? {},
   };

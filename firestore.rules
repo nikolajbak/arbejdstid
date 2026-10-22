@@ -95,6 +95,19 @@ service cloud.firestore {
         && (!('moms' in d) || (d.moms is number && d.moms >= 0 && d.moms <= d.beloeb));
     }
 
+    // Fremtidige opgaver på en kunde: idé, godkendt eller udført.
+    function gyldigOpgave() {
+      let d = request.resource.data;
+      return felter(['kundeId', 'titel', 'niveau', 'dato', 'note'], ['kundeId', 'titel', 'niveau', 'dato', 'note'])
+        && d.kundeId is string
+        && d.titel is string
+        && d.titel.size() > 0
+        && d.niveau in ['ide', 'godkendt', 'udfoert']
+        && d.dato is string
+        && d.dato.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && d.note is string;
+    }
+
     // Et billede (fx en kvittering) på posten med samme id, som JPEG-data-URL.
     function gyldigtBilag() {
       return felter(['billede'], ['billede'])
@@ -161,6 +174,11 @@ service cloud.firestore {
       match /poster/{id} {
         allow read, delete: if eget();
         allow create, update: if eget() && gyldigPost([]);
+      }
+
+      match /opgaver/{id} {
+        allow read, delete: if eget();
+        allow create, update: if eget() && gyldigOpgave();
       }
 
       match /bilag/{id} {
@@ -265,6 +283,11 @@ service cloud.firestore {
             || (request.resource.data.person is string
               && (request.resource.data.person in team().medlemmer
                 || (resource != null && request.resource.data.person == resource.data.get('person', null)))));
+      }
+
+      match /opgaver/{id} {
+        allow read, delete: if medlem();
+        allow create, update: if medlem() && gyldigOpgave();
       }
 
       match /bilag/{id} {
