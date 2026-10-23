@@ -90,3 +90,4 @@ cd push && npx wrangler dev --port 8787    # workeren lokalt (kræver push/.dev.
   kommentar om, hvad den er.
 - Ren logik i `core.js` med tests; DOM-kode i de øvrige moduler.
 - Planer og specs fra superpowers-skills ligger i `docs/superpowers/`.
+- **Tokenforbrugende kørsler ligger uden for Anthropics spidstid** (Nikolaj 2026-10-23): hverdage 05–11 PT ≈ 14–20 dansk tid. En planlagt kørsel, der kalder en model (routine, Actions, pg_cron → edge-funktion), startes ikke man–fre kl. 12:00–18:59 UTC (dækker både sommer- og vintertid); weekenden er fri. Brugerudløste og tidskritiske kørsler (kundebeskeder, ordrer, påmindelser på et fast klokkeslæt) er undtaget. Ingen planlagte modelkald pr. 2026-10-23; Gemini kaldes kun, når brugeren beder om det.
