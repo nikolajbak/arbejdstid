@@ -17,6 +17,12 @@ import { visHistorik } from './historik.js';
 import { visKunder } from './kunder.js';
 import { visIndstillinger, opdaterBrugere } from './indstillinger.js';
 
+// Appen må ikke zoome. iOS ignorerer user-scalable=no i viewporten, så knibet stoppes her;
+// dobbelttrykket stoppes af touch-action i stilarket.
+for (const t of ['gesturestart', 'gesturechange', 'gestureend']) {
+  document.addEventListener(t, (e) => e.preventDefault(), { passive: false });
+}
+
 const FANER = {
   tid: { titel: 'Tid', vis: visTid },
   historik: { titel: 'Historik', vis: visHistorik },
