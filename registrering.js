@@ -1,6 +1,6 @@
 // Rettearket for en registrering ("Tilføj tid" og ret) og rækken i lister.
 
-import { amountOf, dayKey, durationMs, farveFor, forPersoner, formatDuration, formatKr, markerRettelse, medPerson, parseNumber, personNavn, senesteKombinationer, validateEntry } from './core.js';
+import { UDEN_OPGAVE, amountOf, dayKey, durationMs, farveFor, forPersoner, formatDuration, formatKr, markerRettelse, medPerson, parseNumber, personNavn, senesteKombinationer, validateEntry } from './core.js';
 import { newId } from './store.js';
 import { t, commit, erstat, kundePaa, migITeam } from './tilstand.js';
 import { h, aabnArk, lukArk, arkTop, felt, ikon, prik, klokken, lokalTid, navnPaa, afregnetMaerke, ventendeMaerke } from './ui.js';
@@ -17,12 +17,13 @@ export function hvadTekst({ kundeId, opgavetypeId }) {
 
 // status er 'afregnet' eller 'delvis' fra afregning(); udeladt viser intet mærke.
 // En ventende registrering viser i stedet, hvem den venter på.
-export function registreringsRaekke(e, status) {
+// udenKunde: på kundesiden, hvor kunden står ovenover, vises kun opgaven.
+export function registreringsRaekke(e, status, { udenKunde = false } = {}) {
   const maerke = ventendeMaerke(e) ?? afregnetMaerke(status);
   return h('button', { class: e.afventer ? 'raekke venter' : 'raekke', 'data-farve': farveFor(kundePaa(e.kundeId) ?? { id: e.kundeId }), onclick: () => aabnRegistrering(e) },
     h('span', { class: 'streg' }),
     h('span', { class: 'hoved' },
-      h('span', { class: 'titel' }, hvadTekst(e)),
+      h('span', { class: 'titel' }, udenKunde ? (e.opgavetypeId ? navnPaa(t.state.opgavetyper, e.opgavetypeId) : UDEN_OPGAVE) : hvadTekst(e)),
       h('span', { class: 'under' }, maerke, maerke && ' · ', `${t.team && e.person ? `${personNavn(t.team, e.person)} · ` : ''}${klokken(e.start)}–${klokken(e.slut)}${e.note ? ` · ${e.note}` : ''}`),
     ),
     h('span', { class: 'tal' },

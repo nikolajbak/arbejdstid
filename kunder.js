@@ -27,6 +27,8 @@ const dagTekst = (dag) => {
   const s = new Date(`${dag}T12:00`).toLocaleDateString('da-DK', { weekday: 'long', day: 'numeric', month: 'long', ...aar(dag) });
   return s.charAt(0).toUpperCase() + s.slice(1);
 };
+// Rækkerne på kundesiden udelader kundens navn; det står i toppen.
+const udenKunde = { udenKunde: true };
 const navnPaaKunde = (id) => kundePaa(id)?.navn ?? '(slettet)';
 
 const saldoTekst = (saldo) => (saldo >= 0.005 ? 'Skylder' : saldo <= -0.005 ? 'Til gode' : 'Alt afregnet');
@@ -125,9 +127,9 @@ function forbrug(id, saldo, status) {
       chip(navn, { valgt: forbrugOffset === offset, onclick: () => { forbrugOffset = offset; render(); } }))),
     f.ms || f.poster.length || f.betalt >= 0.005
       ? h('div', { class: 'kort forbrug' },
-        f.ms > 0 && linje('tid', 'Tid', `${formatDuration(f.ms)} timer`, f.tidKr, [opgaver, medDage(f.registreringer, regDag, (r) => registreringsRaekke(r, status.get(r.id)))]),
-        f.poster.map((p) => linje(p.type, p.navn, p.antal === 1 ? '1 post' : `${p.antal} poster`, p.kr, medDage(p.liste, postDag, (x) => postRaekke(x, status.get(x.id))))),
-        f.betalt >= 0.005 && linje('betalt', 'Betalt', null, f.betalt, medDage(f.betalinger, postDag, (x) => postRaekke(x))))
+        f.ms > 0 && linje('tid', 'Tid', `${formatDuration(f.ms)} timer`, f.tidKr, [opgaver, medDage(f.registreringer, regDag, (r) => registreringsRaekke(r, status.get(r.id), udenKunde))]),
+        f.poster.map((p) => linje(p.type, p.navn, p.antal === 1 ? '1 post' : `${p.antal} poster`, p.kr, medDage(p.liste, postDag, (x) => postRaekke(x, status.get(x.id), udenKunde)))),
+        f.betalt >= 0.005 && linje('betalt', 'Betalt', null, f.betalt, medDage(f.betalinger, postDag, (x) => postRaekke(x, null, udenKunde))))
       : h('p', { class: 'tom' }, 'Intet i perioden.'),
     h('div', { class: 'forbrug-del' }, del),
   ];
@@ -144,7 +146,7 @@ function dagGrupper(linjer, status) {
   }
   return dage.map((d) => [
     h('h3', { class: 'dag' }, h('span', {}, dagTekst(d.dag))),
-    h('div', { class: 'kort' }, d.linjer.map((l) => (l.slags === 'registrering' ? registreringsRaekke(l.x, status.get(l.x.id)) : postRaekke(l.x, status.get(l.x.id))))),
+    h('div', { class: 'kort' }, d.linjer.map((l) => (l.slags === 'registrering' ? registreringsRaekke(l.x, status.get(l.x.id), udenKunde) : postRaekke(l.x, status.get(l.x.id), udenKunde)))),
   ]);
 }
 

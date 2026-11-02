@@ -11,13 +11,14 @@ import { aabnVaelger } from './vaelger.js';
 const kr = (n) => String(n).replace('.', ',');
 
 // En ventende post viser, hvem den venter på, i stedet for afregnet-mærket.
-export function postRaekke(p, status) {
+// udenKunde: på kundesiden, hvor kunden står ovenover, vises kun posttypen.
+export function postRaekke(p, status, { udenKunde = false } = {}) {
   const beloeb = postBeloeb(p);
   const maerke = ventendeMaerke(p) ?? afregnetMaerke(status);
   return h('button', { class: p.afventer ? 'raekke venter' : 'raekke', 'data-farve': farveFor(kundePaa(p.kundeId) ?? { id: p.kundeId }), onclick: () => aabnPost(p) },
     h('span', { class: 'streg' }),
     h('span', { class: 'hoved' },
-      h('span', { class: 'titel' }, `${POST_TYPER[p.type]} · ${navnPaa(t.state.kunder, p.kundeId)}`),
+      h('span', { class: 'titel' }, udenKunde ? POST_TYPER[p.type] : `${POST_TYPER[p.type]} · ${navnPaa(t.state.kunder, p.kundeId)}`),
       (maerke || p.note) && h('span', { class: 'under' }, maerke, maerke && p.note && ' · ', p.note),
     ),
     p.bilag && h('span', { class: 'bilag-maerke', title: 'Har billede' }, ikon('clips')),
