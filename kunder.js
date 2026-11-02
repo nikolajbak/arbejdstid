@@ -71,6 +71,7 @@ function kundeListe() {
 
 // Perioden for forbruget: null er al tid, ellers et månedsoffset (0 = denne måned).
 let forbrugOffset = null;
+const aabneForbrug = new Set();
 
 const PERIODER = [['Alt', null], ['Denne måned', 0], ['Sidste måned', -1]];
 
@@ -94,22 +95,39 @@ async function delTekst(tekst, knap) {
   setTimeout(() => { knap.textContent = 'Del opgørelse'; }, 2000);
 }
 
-function forbrug(id, saldo) {
+function forbrug(id, saldo, status) {
   const g = forbrugOffset === null ? {} : monthRange(new Date(), forbrugOffset);
   const f = kundeForbrug(id, godkendte(t.state.registreringer), godkendte(t.state.poster), t.state.opgavetyper, t.state.kunder, g.from, g.to);
-  const linje = (titel, under, kr) => h('div', { class: 'raekke' },
-    h('span', { class: 'hoved' }, h('span', { class: 'titel' }, titel), under && h('span', { class: 'under' }, under)),
-    h('span', { class: 'tal' }, h('span', { class: 'titel' }, formatKr(kr))));
+  // Hver linje folder ud til det, den består af. Hvilke der er åbne, huskes, når siden tegnes om.
+  const linje = (del, titel, under, kr, indhold) => {
+    const noegle = `${id}:${del}`;
+    return h('details', { open: aabneForbrug.has(noegle), ontoggle: (e) => (e.target.open ? aabneForbrug.add(noegle) : aabneForbrug.delete(noegle)) },
+    h('summary', { class: 'raekke' },
+      h('span', { class: 'hoved' }, h('span', { class: 'titel' }, titel), under && h('span', { class: 'under' }, under)),
+      h('span', { class: 'tal' }, h('span', { class: 'titel' }, formatKr(kr))),
+      ikon('ned')),
+    h('div', { class: 'forbrug-detaljer' }, indhold));
+  };
+  // Rækkerne viser ikke datoen, så hver ny dag får en linje foran.
+  const medDage = (liste, dag, raekke) => liste.map((x, i) => [
+    dag(x) !== dag(liste[i - 1] ?? {}) && h('div', { class: 'forbrug-dag' }, dagTekst(dag(x))),
+    raekke(x),
+  ]);
+  const regDag = (r) => r.start && dayKey(new Date(r.start));
+  const postDag = (p) => p.dato;
+  const opgaver = f.typer.length > 1 && f.typer.map((x) => h('div', { class: 'raekke under-raekke' },
+    h('span', { class: 'hoved' }, x.navn),
+    h('span', { class: 'tal' }, `${formatDuration(x.ms)} · ${formatKr(x.kr)}`)));
   const del = h('button', { class: 'knap sekundaer lille', onclick: () => delTekst(forbrugTekst(navnPaaKunde(id), periodeNavn(forbrugOffset), f, saldo), del) }, 'Del opgørelse');
   return [
     sektion('Forbrug', f.iAlt >= 0.005 && formatKr(f.iAlt)),
     h('div', { class: 'chips forbrug-perioder' }, PERIODER.map(([navn, offset]) =>
       chip(navn, { valgt: forbrugOffset === offset, onclick: () => { forbrugOffset = offset; render(); } }))),
     f.ms || f.poster.length || f.betalt >= 0.005
-      ? h('div', { class: 'kort' },
-        f.ms > 0 && linje('Tid', `${formatDuration(f.ms)} timer`, f.tidKr),
-        f.poster.map((p) => linje(p.navn, p.antal === 1 ? '1 post' : `${p.antal} poster`, p.kr)),
-        f.betalt >= 0.005 && linje('Betalt', null, f.betalt))
+      ? h('div', { class: 'kort forbrug' },
+        f.ms > 0 && linje('tid', 'Tid', `${formatDuration(f.ms)} timer`, f.tidKr, [opgaver, medDage(f.registreringer, regDag, (r) => registreringsRaekke(r, status.get(r.id)))]),
+        f.poster.map((p) => linje(p.type, p.navn, p.antal === 1 ? '1 post' : `${p.antal} poster`, p.kr, medDage(p.liste, postDag, (x) => postRaekke(x, status.get(x.id))))),
+        f.betalt >= 0.005 && linje('betalt', 'Betalt', null, f.betalt, medDage(f.betalinger, postDag, (x) => postRaekke(x))))
       : h('p', { class: 'tom' }, 'Intet i perioden.'),
     h('div', { class: 'forbrug-del' }, del),
   ];
@@ -167,7 +185,7 @@ function kundeSide(id) {
       ),
     ),
 
-    forbrug(id, o.saldo),
+    forbrug(id, o.saldo, o.status),
 
     sektion('Opgaveliste'),
     opgaveListe(id, !!kunde),

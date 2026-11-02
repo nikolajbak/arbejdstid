@@ -957,7 +957,11 @@ test('kundeForbrug samler tid og poster i perioden for én kunde', () => {
   assert.equal(f.ms, 2 * 3600000);
   assert.equal(f.tidKr, 1000);
   assert.deepEqual(f.typer.map((x) => [x.navn, x.ms]), [['Udvikling', 2 * 3600000]]);
-  assert.deepEqual(f.poster, [{ type: 'braendstof', navn: 'Brændstof', kr: 500, antal: 2 }]);
+  assert.deepEqual(f.poster.map(({ liste, ...p }) => p), [{ type: 'braendstof', navn: 'Brændstof', kr: 500, antal: 2 }]);
+  // Detaljerne: nyeste først.
+  assert.deepEqual(f.poster[0].liste.map((p) => p.dato), ['2026-10-31', '2026-10-02']);
+  assert.deepEqual(f.registreringer.map((r) => r.start), ['2026-10-07T08:00:00']);
+  assert.deepEqual(f.betalinger.map((p) => p.beloeb), [1000]);
   assert.equal(f.udlaeg, 500);
   assert.equal(f.iAlt, 1500);
   assert.equal(f.betalt, 1000);

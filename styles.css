@@ -640,3 +640,12 @@ details.folder[open] > :not(summary) { animation: fold-ud 260ms var(--ud); }
 /* Forbrug på kundesiden */
 .forbrug-perioder { margin: 0 0 8px; }
 .forbrug-del { display: flex; justify-content: flex-end; margin-top: 8px; }
+.forbrug > details > summary { list-style: none; cursor: pointer; }
+.forbrug > details > summary::-webkit-details-marker { display: none; }
+.forbrug > details > summary .ikon-ned { transition: transform 260ms var(--ud); }
+.forbrug > details[open] > summary .ikon-ned { transform: rotate(180deg); }
+.forbrug-detaljer { background: var(--daempet); border-top: 1px solid var(--linje); }
+.forbrug-detaljer > .raekke + .raekke { border-top: 1px solid var(--linje); }
+.forbrug-detaljer .under-raekke { min-height: 44px; color: var(--sek); font-size: 15px; }
+.forbrug > details[open] > .forbrug-detaljer { animation: fold-ud 260ms var(--ud); }
+.forbrug-dag { padding: 12px 16px 4px; color: var(--sek); font-size: 13px; font-weight: 500; }

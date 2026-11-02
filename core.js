@@ -408,16 +408,17 @@ export function summarize(entries, kunder, opgavetyper, poster = []) {
 }
 
 // Hvad en kunde har fået i en periode (from inklusiv, to eksklusiv; udelades de, al tid):
-// tid pr. opgave, udlæg pr. posttype og betalt. iAlt er tid plus udlæg.
+// tid pr. opgave, udlæg pr. posttype og betalt. iAlt er tid plus udlæg. Til detaljerne
+// følger registreringerne, posterne pr. type (liste) og betalingerne med, nyeste først.
 export function kundeForbrug(kundeId, registreringer, poster, opgavetyper, kunder = [], from = null, to = null) {
   const iPeriode = (dag) => (!from || dag >= dayKey(from)) && (!to || dag < dayKey(to));
-  const regs = registreringer.filter((r) => r.kundeId === kundeId && iPeriode(dayKey(r.start)));
-  const psts = poster.filter((p) => p.kundeId === kundeId && iPeriode(p.dato));
+  const regs = registreringer.filter((r) => r.kundeId === kundeId && iPeriode(dayKey(r.start))).sort(nyesteFoerst);
+  const psts = poster.filter((p) => p.kundeId === kundeId && iPeriode(p.dato)).sort((a, b) => (a.dato < b.dato ? 1 : a.dato > b.dato ? -1 : 0));
   const k = summarize(regs, kunder, opgavetyper).kunder[0];
   const udlaegPoster = Object.keys(POST_TYPER)
     .map((type) => ({ type, liste: psts.filter((p) => p.type === type) }))
     .filter(({ type, liste }) => liste.length && postBeloeb({ type, beloeb: 1 }) > 0)
-    .map(({ type, liste }) => ({ type, navn: POST_TYPER[type], kr: liste.reduce((n, p) => n + p.beloeb, 0), antal: liste.length }));
+    .map(({ type, liste }) => ({ type, navn: POST_TYPER[type], kr: liste.reduce((n, p) => n + p.beloeb, 0), antal: liste.length, liste }));
   const udlaeg = udlaegPoster.reduce((n, p) => n + p.kr, 0);
   return {
     ms: k?.ms ?? 0,
@@ -427,6 +428,8 @@ export function kundeForbrug(kundeId, registreringer, poster, opgavetyper, kunde
     udlaeg,
     iAlt: (k?.kr ?? 0) + udlaeg,
     betalt: psts.filter((p) => postBeloeb(p) < 0).reduce((n, p) => n + p.beloeb, 0),
+    registreringer: regs,
+    betalinger: psts.filter((p) => postBeloeb(p) < 0),
   };
 }
 
