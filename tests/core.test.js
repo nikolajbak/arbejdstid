@@ -936,3 +936,49 @@ test('profilTal: egne godkendte registreringer i alt, måned og år', () => {
   assert.equal(t.foerste, '2025-12-01T08:00:00');
   assert.equal(profilTal([], 'a').snitTimepris, 0);
 });
+
+import { kundeForbrug, forbrugTekst } from '../core.js';
+
+test('kundeForbrug samler tid og poster i perioden for én kunde', () => {
+  const kunder = [{ id: 'k', navn: 'Beta ApS' }, { id: 'a', navn: 'Andre' }];
+  const typer = [{ id: 't', navn: 'Udvikling' }];
+  const regs = [
+    { kundeId: 'k', opgavetypeId: 't', timepris: 500, start: '2026-10-07T08:00:00', slut: '2026-10-07T10:00:00' },
+    { kundeId: 'k', opgavetypeId: 't', timepris: 500, start: '2026-09-30T08:00:00', slut: '2026-09-30T09:00:00' },
+    { kundeId: 'a', opgavetypeId: 't', timepris: 500, start: '2026-10-07T08:00:00', slut: '2026-10-07T09:00:00' },
+  ];
+  const poster = [
+    { kundeId: 'k', type: 'braendstof', beloeb: 300, dato: '2026-10-02' },
+    { kundeId: 'k', type: 'braendstof', beloeb: 200, dato: '2026-10-31' },
+    { kundeId: 'k', type: 'udgift', beloeb: 120, dato: '2026-11-01' },
+    { kundeId: 'k', type: 'betaling', beloeb: 1000, dato: '2026-10-15' },
+  ];
+  const f = kundeForbrug('k', regs, poster, typer, kunder, new Date(2026, 9, 1), new Date(2026, 10, 1));
+  assert.equal(f.ms, 2 * 3600000);
+  assert.equal(f.tidKr, 1000);
+  assert.deepEqual(f.typer.map((x) => [x.navn, x.ms]), [['Udvikling', 2 * 3600000]]);
+  assert.deepEqual(f.poster, [{ type: 'braendstof', navn: 'Brændstof', kr: 500, antal: 2 }]);
+  assert.equal(f.udlaeg, 500);
+  assert.equal(f.iAlt, 1500);
+  assert.equal(f.betalt, 1000);
+  // Uden periode: al tid.
+  const alt = kundeForbrug('k', regs, poster, typer, kunder);
+  assert.equal(alt.ms, 3 * 3600000);
+  assert.equal(alt.iAlt, 1500 + 500 + 120);
+});
+
+test('forbrugTekst kan sendes til kunden', () => {
+  const f = { ms: 2 * 3600000, tidKr: 1000, typer: [{ navn: 'Udvikling', ms: 2 * 3600000, kr: 1000 }], poster: [{ type: 'braendstof', navn: 'Brændstof', kr: 500, antal: 2 }], udlaeg: 500, iAlt: 1500, betalt: 1000 };
+  const s = forbrugTekst('Beta ApS', 'Oktober 2026', f, 620);
+  assert.equal(s, [
+    'Beta ApS · Oktober 2026',
+    '',
+    'Tid: 2:00 timer · 1.000,00 kr',
+    '  Udvikling: 2:00 · 1.000,00 kr',
+    'Brændstof (2): 500,00 kr',
+    '',
+    'I alt: 1.500,00 kr',
+    'Betalt: 1.000,00 kr',
+    'Udestående i dag: 620,00 kr',
+  ].join('\n'));
+});

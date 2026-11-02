@@ -1,8 +1,8 @@
 // Fanen Kunder: hvad hver kunde skylder, og pr. kunde opgaveliste, tid, udestående og afregninger.
 
-import { POST_TYPER, dayKey, formatDuration, formatKr, godkendte, kundeOversigt, personNavn, toCSV } from './core.js';
+import { POST_TYPER, dayKey, formatDuration, formatKr, forbrugTekst, godkendte, kundeForbrug, kundeOversigt, monthRange, personNavn, toCSV } from './core.js';
 import { t, render, gaaTil, kundePaa } from './tilstand.js';
-import { h, animerIndhold, downloadFile, ikon, prik } from './ui.js';
+import { h, animerIndhold, chip, downloadFile, ikon, prik } from './ui.js';
 import { aabnRegistrering, registreringsRaekke } from './registrering.js';
 import { aabnPost, postRaekke } from './post.js';
 import { redigerKunde } from './indstillinger.js';
@@ -67,6 +67,54 @@ function kundeListe() {
   ];
 }
 
+// --- Forbrug: det, kunden kan få at vide ------------------------------------------
+
+// Perioden for forbruget: null er al tid, ellers et månedsoffset (0 = denne måned).
+let forbrugOffset = null;
+
+const PERIODER = [['Alt', null], ['Denne måned', 0], ['Sidste måned', -1]];
+
+function periodeNavn(offset) {
+  if (offset === null) return 'Alt til dato';
+  const s = monthRange(new Date(), offset).from.toLocaleDateString('da-DK', { month: 'long', year: 'numeric' });
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+// Del-arket på iPhone, ellers udklipsholderen.
+async function delTekst(tekst, knap) {
+  if (navigator.share) {
+    try { return await navigator.share({ text: tekst }); } catch (e) { if (e.name === 'AbortError') return; }
+  }
+  try {
+    await navigator.clipboard.writeText(tekst);
+    knap.textContent = 'Kopieret';
+  } catch {
+    knap.textContent = 'Kunne ikke kopiere';
+  }
+  setTimeout(() => { knap.textContent = 'Del opgørelse'; }, 2000);
+}
+
+function forbrug(id, saldo) {
+  const g = forbrugOffset === null ? {} : monthRange(new Date(), forbrugOffset);
+  const f = kundeForbrug(id, godkendte(t.state.registreringer), godkendte(t.state.poster), t.state.opgavetyper, t.state.kunder, g.from, g.to);
+  const linje = (titel, under, kr) => h('div', { class: 'raekke' },
+    h('span', { class: 'hoved' }, h('span', { class: 'titel' }, titel), under && h('span', { class: 'under' }, under)),
+    h('span', { class: 'tal' }, h('span', { class: 'titel' }, formatKr(kr))));
+  const del = h('button', { class: 'knap sekundaer lille', onclick: () => delTekst(forbrugTekst(navnPaaKunde(id), periodeNavn(forbrugOffset), f, saldo), del) }, 'Del opgørelse');
+  return [
+    sektion('Forbrug', f.iAlt >= 0.005 && formatKr(f.iAlt)),
+    h('div', { class: 'chips forbrug-perioder' }, PERIODER.map(([navn, offset]) =>
+      chip(navn, { valgt: forbrugOffset === offset, onclick: () => { forbrugOffset = offset; render(); } }))),
+    f.ms || f.poster.length || f.betalt >= 0.005
+      ? h('div', { class: 'kort' },
+        f.ms > 0 && linje('Tid', `${formatDuration(f.ms)} timer`, f.tidKr),
+        f.poster.map((p) => linje(p.navn, p.antal === 1 ? '1 post' : `${p.antal} poster`, p.kr)),
+        f.betalt >= 0.005 && linje('Betalt', null, f.betalt))
+      : h('p', { class: 'tom' }, 'Intet i perioden.'),
+    h('div', { class: 'forbrug-del' }, del),
+  ];
+}
+
 // --- Én kunde ---------------------------------------------------------------------
 
 // Linjer grupperet pr. dag i den rækkefølge, de kommer.
@@ -118,6 +166,8 @@ function kundeSide(id) {
         ),
       ),
     ),
+
+    forbrug(id, o.saldo),
 
     sektion('Opgaveliste'),
     opgaveListe(id, !!kunde),

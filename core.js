@@ -407,8 +407,46 @@ export function summarize(entries, kunder, opgavetyper, poster = []) {
   };
 }
 
+// Hvad en kunde har fået i en periode (from inklusiv, to eksklusiv; udelades de, al tid):
+// tid pr. opgave, udlæg pr. posttype og betalt. iAlt er tid plus udlæg.
+export function kundeForbrug(kundeId, registreringer, poster, opgavetyper, kunder = [], from = null, to = null) {
+  const iPeriode = (dag) => (!from || dag >= dayKey(from)) && (!to || dag < dayKey(to));
+  const regs = registreringer.filter((r) => r.kundeId === kundeId && iPeriode(dayKey(r.start)));
+  const psts = poster.filter((p) => p.kundeId === kundeId && iPeriode(p.dato));
+  const k = summarize(regs, kunder, opgavetyper).kunder[0];
+  const udlaegPoster = Object.keys(POST_TYPER)
+    .map((type) => ({ type, liste: psts.filter((p) => p.type === type) }))
+    .filter(({ type, liste }) => liste.length && postBeloeb({ type, beloeb: 1 }) > 0)
+    .map(({ type, liste }) => ({ type, navn: POST_TYPER[type], kr: liste.reduce((n, p) => n + p.beloeb, 0), antal: liste.length }));
+  const udlaeg = udlaegPoster.reduce((n, p) => n + p.kr, 0);
+  return {
+    ms: k?.ms ?? 0,
+    tidKr: k?.kr ?? 0,
+    typer: k?.typer ?? [],
+    poster: udlaegPoster,
+    udlaeg,
+    iAlt: (k?.kr ?? 0) + udlaeg,
+    betalt: psts.filter((p) => postBeloeb(p) < 0).reduce((n, p) => n + p.beloeb, 0),
+  };
+}
+
+// Opgørelsen som tekst, der kan sendes til kunden. saldo er det udestående over al tid.
+export function forbrugTekst(navn, periode, f, saldo) {
+  const linjer = [`${navn} · ${periode}`, ''];
+  if (f.ms) {
+    linjer.push(`Tid: ${formatDuration(f.ms)} timer · ${formatKr(f.tidKr)}`);
+    for (const x of f.typer) linjer.push(`  ${x.navn}: ${formatDuration(x.ms)} · ${formatKr(x.kr)}`);
+  }
+  for (const p of f.poster) linjer.push(`${p.navn}${p.antal > 1 ? ` (${p.antal})` : ''}: ${formatKr(p.kr)}`);
+  if (!f.ms && !f.poster.length) linjer.push('Intet registreret.');
+  linjer.push('', `I alt: ${formatKr(f.iAlt)}`);
+  if (f.betalt >= 0.005) linjer.push(`Betalt: ${formatKr(f.betalt)}`);
+  linjer.push(saldo <= -0.005 ? `Til gode i dag: ${formatKr(-saldo)}` : `Udestående i dag: ${formatKr(Math.max(0, saldo))}`);
+  return linjer.join('\n');
+}
+
 const p2 = (n) => String(n).padStart(2, '0');
-const klokken = (d) => `${p2(d.getHours())}:${p2(d.getMinutes())}`;
+const klokken =(d) => `${p2(d.getHours())}:${p2(d.getMinutes())}`;
 const csvTal = (n) => n.toFixed(2).replace('.', ',');
 const csvFelt = (v) => {
   let s = String(v ?? '');
