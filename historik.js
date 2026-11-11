@@ -159,7 +159,7 @@ function saldoKort(afregnetTil) {
     h('h3', { class: 'dag' }, h('span', {}, 'Saldo')),
     h('div', { class: 'kort' }, liste.map((x) => h('button', {
       class: 'raekke',
-      onclick: () => aabnKunde(x.kundeId),
+      onclick: () => aabnKunde(x.kundeId, 'historik'),
     },
     prik(kundePaa(x.kundeId) ?? { id: x.kundeId }),
     h('span', { class: 'hoved' },

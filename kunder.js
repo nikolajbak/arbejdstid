@@ -12,13 +12,34 @@ import { opgaveListe } from './opgave.js';
 let valgt = null;
 let valgtSted = null;
 
-export function aabnKunde(id) {
+// Hvor kundesiden blev åbnet fra: fanen (null = kundelisten) og hvor langt der var rullet.
+// Tilbage fører derhen igen.
+let fra = null;
+
+// Åbner en kunde fra en anden fane, fx saldoen i Historik.
+export function aabnKunde(id, fraFane) {
+  fra = { fane: fraFane ?? null, y: window.scrollY };
   valgt = id;
   valgtSted = t.arbejdssted;
   gaaTil('kunder');
 }
 
-const vis = (id) => () => { valgt = id; render(); animerIndhold(id ? 'frem' : 'tilbage'); window.scrollTo(0, 0); };
+const vis = (id) => () => {
+  fra = { fane: null, y: window.scrollY };
+  valgt = id;
+  render();
+  animerIndhold('frem');
+  window.scrollTo(0, 0);
+};
+
+function tilbage() {
+  const { fane, y } = fra ?? { fane: null, y: 0 };
+  fra = null;
+  valgt = null;
+  if (fane) gaaTil(fane);
+  else { render(); animerIndhold('tilbage'); }
+  window.scrollTo(0, y);
+}
 
 // Året vises kun, når det ikke er i år.
 const aar = (dag) => (dag.slice(0, 4) === String(new Date().getFullYear()) ? {} : { year: 'numeric' });
@@ -165,7 +186,7 @@ function kundeSide(id) {
   );
   const msIAlt = o.opgaver.reduce((n, x) => n + x.ms, 0);
   return [
-    h('button', { class: 'tekstknap tilbage', onclick: vis(null) }, ikon('venstre'), 'Kunder'),
+    h('button', { class: 'tekstknap tilbage', onclick: tilbage }, ikon('venstre'), fra?.fane === 'historik' ? 'Historik' : 'Kunder'),
     h('section', { class: 'kort kunde-hoved' },
       h('div', { class: 'kunde-navn' },
         prik(kunde ?? { id }),
