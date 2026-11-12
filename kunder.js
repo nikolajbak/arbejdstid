@@ -16,21 +16,41 @@ let valgtSted = null;
 // Tilbage fører derhen igen.
 let fra = null;
 
+// Kundesiden ligger i browserens historik, så browserens tilbage (knap, ⌘[, swipe)
+// gør det samme som knappen i appen. Rullepositionen sætter appen selv.
+if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+
 // Åbner en kunde fra en anden fane, fx saldoen i Historik.
 export function aabnKunde(id, fraFane) {
   fra = { fane: fraFane ?? null, y: window.scrollY };
   valgt = id;
   valgtSted = t.arbejdssted;
+  history.pushState({ kunde: id, fraFane: fra.fane }, '');
   gaaTil('kunder');
 }
 
-const vis = (id) => () => {
+function aabnFraListe(id, ny = true) {
   fra = { fane: null, y: window.scrollY };
   valgt = id;
+  if (ny) history.pushState({ kunde: id, fraFane: null }, '');
   render();
   animerIndhold('frem');
   window.scrollTo(0, 0);
-};
+}
+const vis = (id) => () => aabnFraListe(id);
+
+// Knappen i appen: går tilbage i historikken, hvis kundesiden ligger der, ellers direkte.
+const tilbageKnap = () => (history.state?.kunde ? history.back() : tilbage());
+
+window.addEventListener('popstate', (e) => {
+  const kunde = e.state?.kunde;
+  if (valgt && kunde !== valgt) tilbage();
+  // Frem igen til en kunde.
+  else if (kunde && !valgt) {
+    if (e.state.fraFane) { fra = { fane: e.state.fraFane, y: window.scrollY }; valgt = kunde; valgtSted = t.arbejdssted; gaaTil('kunder'); }
+    else aabnFraListe(kunde, false);
+  }
+});
 
 function tilbage() {
   const { fane, y } = fra ?? { fane: null, y: 0 };
@@ -186,7 +206,7 @@ function kundeSide(id) {
   );
   const msIAlt = o.opgaver.reduce((n, x) => n + x.ms, 0);
   return [
-    h('button', { class: 'tekstknap tilbage', onclick: tilbage }, ikon('venstre'), fra?.fane === 'historik' ? 'Historik' : 'Kunder'),
+    h('button', { class: 'tekstknap tilbage', onclick: tilbageKnap }, ikon('venstre'), fra?.fane === 'historik' ? 'Historik' : 'Kunder'),
     h('section', { class: 'kort kunde-hoved' },
       h('div', { class: 'kunde-navn' },
         prik(kunde ?? { id }),
