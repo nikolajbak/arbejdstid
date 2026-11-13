@@ -19,6 +19,99 @@ export function amountOf(entry, kunder = []) {
   return (durationMs(entry) / TIME_MS) * entry.timepris * (medMoms(kunder, entry.kundeId) ? 1 + MOMS : 1);
 }
 
+// --- Flere timepriser ----------------------------------------------------------------
+// En kunde kan have satser ud over timeprisen: { navn, timepris, dage, fra, til, helligdage }.
+// dage er ugedage som getDay (0 = søndag). fra/til er "TT:MM"; tomme betyder hele døgnet,
+// og til før fra går over midnat. Rammer flere satser, gælder den højeste pris.
+// Alt regnes i enhedens lokale tid.
+
+const DAG_MS = 86400000;
+const KLOKKEN = /^([01]\d|2[0-3]):[0-5]\d$/;
+const minutter = (tt) => Number(tt.slice(0, 2)) * 60 + Number(tt.slice(3));
+
+export const gyldigSats = (s) => !!s && typeof s.navn === 'string' && s.navn.trim() !== ''
+  && typeof s.timepris === 'number' && Number.isFinite(s.timepris) && s.timepris >= 0
+  && Array.isArray(s.dage) && s.dage.every((d) => Number.isInteger(d) && d >= 0 && d <= 6)
+  && (s.dage.length > 0 || s.helligdage === true)
+  && ((s.fra === '' && s.til === '') || (KLOKKEN.test(s.fra ?? '') && KLOKKEN.test(s.til ?? '')))
+  && (s.helligdage == null || typeof s.helligdage === 'boolean');
+
+const satserPaa = (kunde) => (Array.isArray(kunde?.satser) ? kunde.satser.filter(gyldigSats) : []);
+
+// Påskedag efter den gregorianske kalender (anonym algoritme).
+function paaskedag(aar) {
+  const a = aar % 19, b = Math.floor(aar / 100), c = aar % 100;
+  const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
+  const hh = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4;
+  const l = (32 + 2 * e + 2 * i - hh - k) % 7, m = Math.floor((a + 11 * hh + 22 * l) / 451);
+  const maaned = Math.floor((hh + l - 7 * m + 114) / 31), dag = ((hh + l - 7 * m + 114) % 31) + 1;
+  return new Date(aar, maaned - 1, dag);
+}
+
+// Officielle danske helligdage. Store bededag er afskaffet fra 2024.
+export function erHelligdag(dato) {
+  const aar = dato.getFullYear(), md = dato.getMonth(), dg = dato.getDate();
+  if ((md === 0 && dg === 1) || (md === 11 && (dg === 25 || dg === 26))) return true;
+  const p = paaskedag(aar);
+  const forskydninger = [-3, -2, 0, 1, 39, 49, 50];
+  if (aar < 2024) forskydninger.push(26);
+  return forskydninger.some((n) => { const x = new Date(aar, p.getMonth(), p.getDate() + n); return x.getMonth() === md && x.getDate() === dg; });
+}
+
+const dagGaelder = (s, dag) => s.dage.includes(dag.getDay()) || (s.helligdage === true && erHelligdag(dag));
+
+// Tidsrummet satsen dækker, når det begynder på dagen dag (lokal midnat).
+function vindue(s, dag) {
+  const fra = s.fra ? minutter(s.fra) : 0;
+  let til = s.til ? minutter(s.til) : 0;
+  if (til <= fra) til += 24 * 60;
+  const y = dag.getFullYear(), m = dag.getMonth(), d = dag.getDate();
+  return [new Date(y, m, d, 0, fra).getTime(), new Date(y, m, d, 0, til).getTime()];
+}
+
+const midnat = (ms) => { const d = new Date(ms); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); };
+const dagenFoer = (dag) => new Date(dag.getFullYear(), dag.getMonth(), dag.getDate() - 1);
+
+// Timeprisen på et tidspunkt: { timepris, navn }, hvor navn er null for den normale.
+export function satsVed(kunde, tid) {
+  const ms = new Date(tid).getTime();
+  let bedst = { timepris: kunde?.timepris ?? 0, navn: null };
+  const idag = midnat(ms);
+  for (const s of satserPaa(kunde)) {
+    const rammer = [idag, dagenFoer(idag)].some((dag) => {
+      if (!dagGaelder(s, dag)) return false;
+      const [a, b] = vindue(s, dag);
+      return ms >= a && ms < b;
+    });
+    if (rammer && (bedst.navn === null || s.timepris > bedst.timepris)) bedst = { timepris: s.timepris, navn: s.navn };
+  }
+  return bedst;
+}
+
+// Deler start–slut ved satsernes grænser: [{ start, slut, timepris }], ens priser samlet.
+export function tidsstykker(kunde, start, slut) {
+  const a = new Date(start).getTime(), b = new Date(slut).getTime();
+  const satser = satserPaa(kunde);
+  const graenser = new Set([a, b]);
+  if (satser.length) {
+    for (let dag = dagenFoer(midnat(a)); dag.getTime() <= b; dag = new Date(dag.getFullYear(), dag.getMonth(), dag.getDate() + 1)) {
+      for (const s of satser) for (const g of vindue(s, dag)) if (g > a && g < b) graenser.add(g);
+    }
+  }
+  const punkter = [...graenser].sort((x, y) => x - y);
+  const stykker = [];
+  for (let i = 0; i < punkter.length - 1; i++) {
+    const timepris = satsVed(kunde, punkter[i]).timepris;
+    const sidste = stykker[stykker.length - 1];
+    if (sidste && sidste.timepris === timepris) sidste.slut = punkter[i + 1];
+    else stykker.push({ start: punkter[i], slut: punkter[i + 1], timepris });
+  }
+  return stykker.map((x) => ({ start: new Date(x.start).toISOString(), slut: new Date(x.slut).toISOString(), timepris: x.timepris }));
+}
+
+// pris er enten en fast timepris eller kunden, hvis satser så afgør prisen.
+const stykkerFor = (pris, start, slut) => (typeof pris === 'number' ? [{ start, slut, timepris: pris }] : tidsstykker(pris, start, slut));
+
 // --- Poster: penge på en kunde ud over tiden ---------------------------------------
 
 // Noten til en læst kvittering: butikken og varerne med pris, fx "Netto: Mælk 12,50, Brød 20,00".
@@ -347,11 +440,12 @@ const aktiveDeltagere = (ur, medlemmer) => (ur?.deltagere ?? []).filter((p) => !
 
 // Registreringerne for et stoppet ur: én pr. deltager, ellers én for personen.
 // person er null i Mig. Fjernede medlemmer springes over; databasen afviser dem.
+// timepris er en fast pris eller kunden; med satser deles tiden i én registrering pr. pris.
 export function registreringerFraUr(ur, { slut, timepris, opgavetypeId, note, person = null, nyId, medlemmer = null }) {
-  const base = { kundeId: ur.kundeId, opgavetypeId: opgavetypeId ?? '', start: ur.start, slut, timepris, note: note ?? '' };
   const deltagere = aktiveDeltagere(ur, medlemmer);
   const personer = deltagere.length ? deltagere : person ? [person] : [];
-  return forPersoner(base, personer, nyId, person);
+  return stykkerFor(timepris, ur.start, slut).flatMap((x) =>
+    forPersoner({ kundeId: ur.kundeId, opgavetypeId: opgavetypeId ?? '', start: x.start, slut: x.slut, timepris: x.timepris, note: note ?? '' }, personer, nyId, person));
 }
 
 export const medPerson = (entries, uid) => (uid ? entries.filter((e) => e.person === uid) : entries);
@@ -498,7 +592,8 @@ const erTal = (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0;
 const erDato = (v) => erTekst(v) && !Number.isNaN(new Date(v).getTime());
 const erValgfriTekst = (v) => v == null || erTekst(v);
 
-const gyldigKunde = (k) => k && erTekst(k.id) && erTekst(k.navn) && erTal(k.timepris) && (k.moms == null || typeof k.moms === 'boolean');
+const gyldigKunde = (k) => k && erTekst(k.id) && erTekst(k.navn) && erTal(k.timepris) && (k.moms == null || typeof k.moms === 'boolean')
+  && (k.satser == null || (Array.isArray(k.satser) && k.satser.every(gyldigSats)));
 const gyldigType = (t) => t && erTekst(t.id) && erTekst(t.navn);
 const gyldigReg = (r) => r && erTekst(r.id) && erTekst(r.kundeId) && erTekst(r.opgavetypeId)
   && erDato(r.start) && erDato(r.slut) && new Date(r.slut) > new Date(r.start)

@@ -649,3 +649,7 @@ details.folder[open] > :not(summary) { animation: fold-ud 260ms var(--ud); }
 .forbrug-detaljer .under-raekke { min-height: 44px; color: var(--sek); font-size: 15px; }
 .forbrug > details[open] > .forbrug-detaljer { animation: fold-ud 260ms var(--ud); }
 .forbrug-dag { padding: 12px 16px 4px; color: var(--sek); font-size: 13px; font-weight: 500; }
+
+.satser { display: grid; gap: 8px; }
+.sats { display: grid; gap: 10px; padding: 12px; }
+.sats .tekstknap { justify-self: start; }

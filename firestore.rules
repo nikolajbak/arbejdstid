@@ -48,8 +48,10 @@ service cloud.firestore {
 
     function gyldigKunde() {
       let d = request.resource.data;
-      return felter(['navn', 'timepris', 'arkiveret'], ['navn', 'timepris', 'arkiveret', 'farve', 'moms'])
+      return felter(['navn', 'timepris', 'arkiveret'], ['navn', 'timepris', 'arkiveret', 'farve', 'moms', 'satser'])
         && (!('moms' in d) || d.moms is bool)
+        // Særlige timepriser; indholdet tjekkes af appen.
+        && (!('satser' in d) || (d.satser is list && d.satser.size() <= 20))
         && (!('farve' in d) || d.farve in ['skov', 'ler', 'indigo', 'blomme', 'rosa', 'okker', 'hav', 'skifer'])
         && d.navn is string
         && d.navn.size() > 0

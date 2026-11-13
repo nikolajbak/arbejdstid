@@ -3,14 +3,38 @@
 import { teamSektion } from './teamark.js';
 import { status as pushStatus, slaaTil, slaaFra } from './push.js';
 import { profilKort } from './profil.js';
-import { FARVER, dayKey, farveFor, formatKr, invitationsMail, naesteFarve, normaliserEmail, parseNumber, validateBackup } from './core.js';
+import { FARVER, gyldigSats, dayKey, farveFor, formatKr, invitationsMail, naesteFarve, normaliserEmail, parseNumber, validateBackup } from './core.js';
 import { newId } from './store.js';
 import { logUd, inviter, fjernAdgang, saetAdmin, appAdresse } from './konto.js';
 import { t, commit, aendr, aktive, arkiverede } from './tilstand.js';
 import { h, aabnArk, lukArk, arkTop, chip, felt, ikon, prik, besked, downloadFile } from './ui.js';
 
 const efterNavn = (a, b) => a.navn.localeCompare(b.navn, 'da');
-const kr = (k) => `${formatKr(k.timepris)}/t${k.moms ? ' + moms' : ''}`;
+const kr = (k) => `${formatKr(k.timepris)}/t${k.moms ? ' + moms' : ''}${k.satser?.length ? ` · ${k.satser.length} særlig${k.satser.length > 1 ? 'e' : ''} timepris${k.satser.length > 1 ? 'er' : ''}` : ''}`;
+
+// Ugedagene i visningsrækkefølge med getDay-nummer.
+const UGEDAGE = [['Man', 1], ['Tir', 2], ['Ons', 3], ['Tor', 4], ['Fre', 5], ['Lør', 6], ['Søn', 0]];
+
+// Ét kort pr. særlig timepris. Felterne skrives i s ved hver ændring; prisen tolkes ved Gem.
+function satsKort(s, fjern) {
+  const navn = h('input', { value: s.navn, autocomplete: 'off', placeholder: 'fx Weekend', oninput: () => { s.navn = navn.value; } });
+  const pris = h('input', { value: s.prisTekst, inputmode: 'decimal', autocomplete: 'off', placeholder: 'fx 1100', oninput: () => { s.prisTekst = pris.value; } });
+  const fra = h('input', { type: 'time', value: s.fra, 'aria-label': 'Fra', oninput: () => { s.fra = fra.value; } });
+  const til = h('input', { type: 'time', value: s.til, 'aria-label': 'Til', oninput: () => { s.til = til.value; } });
+  const dage = h('div', { class: 'chips' });
+  const tegnDage = () => dage.replaceChildren(
+    ...UGEDAGE.map(([tekst, n]) => chip(tekst, { valgt: s.dage.includes(n), onclick: () => { s.dage = s.dage.includes(n) ? s.dage.filter((d) => d !== n) : [...s.dage, n]; tegnDage(); } })),
+    chip('Helligdage', { valgt: s.helligdage, onclick: () => { s.helligdage = !s.helligdage; tegnDage(); } }),
+  );
+  tegnDage();
+  return h('div', { class: 'kort sats' },
+    felt('Navn', navn),
+    felt('Timepris i kr', pris),
+    h('div', { class: 'felt' }, h('span', {}, 'Dage'), dage),
+    h('div', { class: 'felt' }, h('span', {}, 'Tidsrum (tomt = hele døgnet)'), h('div', { class: 'raekke tidsfelter' }, fra, h('span', { class: 'til' }, '–'), til)),
+    h('button', { type: 'button', class: 'tekstknap', onclick: fjern }, 'Fjern timepris'),
+  );
+}
 
 // --- Kunder ---------------------------------------------------------------------
 
@@ -23,6 +47,14 @@ export function redigerKunde(kunde) {
   const farver = h('div', { class: 'farver', role: 'radiogroup', 'aria-label': 'Farve' });
   let moms = kunde?.moms === true;
   const momsValg = h('div', { class: 'chips' });
+  // Kladder af de særlige timepriser, med prisen som tekst indtil Gem.
+  let satser = (kunde?.satser ?? []).map((x) => ({ ...x, dage: [...x.dage], helligdage: x.helligdage === true, prisTekst: String(x.timepris).replace('.', ',') }));
+  const satsListe = h('div', { class: 'satser' });
+  function tegnSatser() {
+    satsListe.replaceChildren(...satser.map((x) => satsKort(x, () => { satser = satser.filter((y) => y !== x); tegnSatser(); })));
+  }
+  tegnSatser();
+  const tilfoejSats = () => { satser.push({ navn: '', prisTekst: '', dage: [6, 0], fra: '', til: '', helligdage: false }); tegnSatser(); };
 
   function tegnMoms() {
     momsValg.replaceChildren(
@@ -51,8 +83,18 @@ export function redigerKunde(kunde) {
     const p = parseNumber(pris.value);
     if (!n) return (fejl.textContent = 'Skriv et navn');
     if (p === null) return (fejl.textContent = 'Skriv en timepris, fx 850 eller 850,50');
-    if (ny) t.state.kunder.push({ id: newId(), navn: n, timepris: p, arkiveret: false, farve, moms });
-    else aendr('kunder', kunde, { navn: n, timepris: p, farve, moms });
+    const nyeSatser = [];
+    for (const x of satser) {
+      const sats = { navn: x.navn.trim(), timepris: parseNumber(x.prisTekst), dage: [...x.dage].sort(), fra: x.fra, til: x.til, helligdage: x.helligdage };
+      if (!sats.navn) return (fejl.textContent = 'Giv hver særlig timepris et navn');
+      if (sats.timepris === null) return (fejl.textContent = `Skriv en timepris for ${sats.navn}`);
+      if (!sats.dage.length && !sats.helligdage) return (fejl.textContent = `Vælg dage for ${sats.navn}`);
+      if (!sats.fra !== !sats.til) return (fejl.textContent = `Udfyld både fra og til for ${sats.navn}, eller ingen af dem`);
+      if (!gyldigSats(sats)) return (fejl.textContent = `Tjek ${sats.navn}`);
+      nyeSatser.push(sats);
+    }
+    if (ny) t.state.kunder.push({ id: newId(), navn: n, timepris: p, arkiveret: false, farve, moms, satser: nyeSatser });
+    else aendr('kunder', kunde, { navn: n, timepris: p, farve, moms, satser: nyeSatser });
     lukArk();
     commit();
   }
@@ -61,8 +103,11 @@ export function redigerKunde(kunde) {
     h('form', { onsubmit: gem },
       arkTop(ny ? 'Ny kunde' : 'Kunde', h('button', { type: 'submit', class: 'tekstknap staerk' }, 'Gem')),
       felt('Navn', navn),
-      felt('Timepris i kr', pris),
-      !ny && h('p', { class: 'hjaelp' }, 'En ny timepris gælder kun for tid, der registreres fremover.'),
+      felt('Normal timepris i kr', pris),
+      h('div', { class: 'felt' }, h('span', {}, 'Særlige timepriser'), satsListe,
+        h('button', { type: 'button', class: 'knap sekundaer lille', onclick: tilfoejSats }, 'Tilføj timepris')),
+      h('p', { class: 'hjaelp' }, 'Fx weekend eller aften. Tid, der krydser en grænse, deles i flere registreringer. Rammer flere, gælder den højeste.'),
+      !ny && h('p', { class: 'hjaelp' }, 'Ændrede timepriser gælder kun for tid, der registreres fremover.'),
       h('div', { class: 'felt' }, h('span', {}, 'Betaling'), momsValg),
       h('p', { class: 'hjaelp' }, 'Med moms lægges 25 % oven i timeprisen på al kundens tid. Udgifter er uændrede.'),
       h('div', { class: 'felt' }, h('span', {}, 'Farve'), farver),

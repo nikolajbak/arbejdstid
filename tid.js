@@ -1,6 +1,6 @@
 // Fanen Tid: urkortet, Start igen og dagens registreringer.
 
-import { amountOf, dayKey, durationMs, farveFor, formatDuration, formatKr, medPerson, personNavn, registreringerFraUr, senesteKombinationer, sidenTekst, skiftUr, skjulKombination } from './core.js';
+import { amountOf, dayKey, durationMs, tidsstykker, farveFor, formatDuration, formatKr, medPerson, personNavn, registreringerFraUr, senesteKombinationer, sidenTekst, skiftUr, skjulKombination } from './core.js';
 import { newId } from './store.js';
 import { t, commit, aktive, kundePaa, migITeam } from './tilstand.js';
 import { h, aabnArk, lukArk, arkTop, besked, chip, felt, ikon, klokken, lokalTid, navnPaa, p2 } from './ui.js';
@@ -11,14 +11,21 @@ import { godkendKort } from './godkend.js';
 
 const nuIso = () => new Date().toISOString();
 const farvePaa = (kundeId) => farveFor(kundePaa(kundeId) ?? { id: kundeId });
-const timeprisPaa = (kundeId) => kundePaa(kundeId)?.timepris ?? 0;
+// Kunden afgør prisen; har den satser, deles tiden ved grænserne.
+const prisPaa = (kundeId) => kundePaa(kundeId) ?? { timepris: 0 };
 
 function urTekst(start) {
   const ms = Math.max(0, Date.now() - new Date(start));
   return `${formatDuration(ms)}:${p2(Math.floor(ms / 1000) % 60)}`;
 }
 
-const gemteBesked = (r, antal = 1) => besked(`Gemte ${navnPaa(t.state.kunder, r.kundeId)} · ${formatDuration(durationMs(r))}${antal > 1 ? ` × ${antal} personer` : ''}`);
+// nye kan være delt i flere timepriser og personer; tiden vises for én person.
+function gemteBesked(nye) {
+  if (!nye.length) return;
+  const personer = new Set(nye.map((r) => r.person ?? ''));
+  const ms = nye.filter((r) => (r.person ?? '') === (nye[0].person ?? '')).reduce((sum, r) => sum + durationMs(r), 0);
+  besked(`Gemte ${navnPaa(t.state.kunder, nye[0].kundeId)} · ${formatDuration(ms)}${personer.size > 1 ? ` × ${personer.size} personer` : ''}`);
+}
 
 // --- Start, skift og stop -------------------------------------------------------
 
@@ -51,9 +58,10 @@ function fortsaet(kombination) {
   const gammelt = t.state.ur;
   if (!gammelt) return start(kombination);
   const id = newId();
-  t.state = skiftUr(t.state, kombination, nuIso(), timeprisPaa(gammelt.kundeId), id, { person: migITeam(), nyId: newId, medlemmer: t.team?.medlemmer ?? null });
+  const foer = t.state.registreringer.length;
+  t.state = skiftUr(t.state, kombination, nuIso(), prisPaa(gammelt.kundeId), id, { person: migITeam(), nyId: newId, medlemmer: t.team?.medlemmer ?? null });
   commit();
-  gemteBesked(t.state.registreringer.find((r) => r.id === id));
+  gemteBesked(t.state.registreringer.slice(foer));
 }
 
 // Gemmer uret som registrering. Kun hvis det er det samme ur, der stadig kører,
@@ -69,11 +77,11 @@ function gemUr(ur, slut, opgavetypeId, note) {
     return;
   }
   // Én registrering pr. deltager, ellers én for en selv.
-  const nye = registreringerFraUr(ur, { slut: s, timepris: timeprisPaa(ur.kundeId), opgavetypeId, note, person: migITeam(), nyId: newId, medlemmer: t.team?.medlemmer ?? null });
+  const nye = registreringerFraUr(ur, { slut: s, timepris: prisPaa(ur.kundeId), opgavetypeId, note, person: migITeam(), nyId: newId, medlemmer: t.team?.medlemmer ?? null });
   t.state.registreringer.push(...nye);
   t.state.ur = null;
   commit();
-  gemteBesked(nye[0], nye.length);
+  gemteBesked(nye);
 }
 
 function stop() {
@@ -86,7 +94,7 @@ function stop() {
 
 // "Hvad lavede du?" Lukkes arket uden valg, kører uret videre.
 function stopArk(ur, slut) {
-  const r = { ...ur, slut, timepris: timeprisPaa(ur.kundeId) };
+  const stykker = tidsstykker(prisPaa(ur.kundeId), ur.start, slut).map((x) => ({ ...x, kundeId: ur.kundeId }));
   const note = h('input', { value: ur.note ?? '', autocomplete: 'off', placeholder: 'Valgfri' });
   const gem = (opgavetypeId) => { lukArk(); gemUr(ur, slut, opgavetypeId, note.value.trim()); };
   const nyFelt = h('input', { autocomplete: 'off', placeholder: 'Ny opgave', enterkeyhint: 'done' });
@@ -109,8 +117,8 @@ function stopArk(ur, slut) {
     arkTop('Hvad lavede du?'),
     h('div', { class: 'stop-top blod', 'data-farve': farvePaa(ur.kundeId) },
       h('span', { class: 'kunde' }, navnPaa(t.state.kunder, ur.kundeId)),
-      h('span', { class: 'tid' }, formatDuration(durationMs(r))),
-      h('span', {}, formatKr(amountOf(r, t.state.kunder))),
+      h('span', { class: 'tid' }, formatDuration(stykker.reduce((sum, x) => sum + durationMs(x), 0))),
+      h('span', {}, formatKr(stykker.reduce((sum, x) => sum + amountOf(x, t.state.kunder), 0))),
     ),
     h('div', { class: 'chips', 'data-farve': farvePaa(ur.kundeId) },
       typer.map((x) => chip(x.navn, { onclick: () => gem(x.id) })),
