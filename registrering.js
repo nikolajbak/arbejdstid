@@ -1,6 +1,6 @@
 // Rettearket for en registrering ("Tilføj tid" og ret) og rækken i lister.
 
-import { UDEN_OPGAVE, amountOf, dayKey, durationMs, farveFor, forPersoner, formatDuration, formatKr, markerRettelse, medPerson, parseNumber, personNavn, senesteKombinationer, validateEntry } from './core.js';
+import { UDEN_OPGAVE, amountOf, dayKey, durationMs, farveFor, forPersoner, formatDuration, formatKr, markerRettelse, medPerson, parseNumber, personNavn, senesteKombinationer, tidsstykker, validateEntry } from './core.js';
 import { newId } from './store.js';
 import { t, commit, erstat, kundePaa, migITeam } from './tilstand.js';
 import { h, aabnArk, lukArk, arkTop, felt, ikon, prik, klokken, lokalTid, navnPaa, afregnetMaerke, ventendeMaerke } from './ui.js';
@@ -101,16 +101,19 @@ export function aabnRegistrering(entry, forvalg = {}) {
     const f = validateEntry({ start: s, slut: sl });
     if (f) return (fejl.textContent = f);
     let timepris;
-    if (ny) timepris = kundePaa(valg.kundeId)?.timepris ?? 0;
-    else {
+    if (!ny) {
       timepris = parseNumber(pris.value);
       if (timepris === null) return (fejl.textContent = 'Skriv en gyldig timepris');
     }
     const data = { kundeId: valg.kundeId, opgavetypeId: valg.opgavetypeId, start: s, slut: sl, timepris, note: note.value.trim() };
     // I et team én registrering pr. valgt person; i Mig én uden person.
     // Det, der registreres eller rettes for en anden, venter på dennes godkendelse.
-    if (ny) t.state.registreringer.push(...forPersoner(data, valg.personer, newId, migITeam()));
-    else {
+    // En ny registrering deles efter kundens timepriser; en rettelse beholder sin pris.
+    if (ny) {
+      for (const x of tidsstykker(kundePaa(valg.kundeId) ?? { timepris: 0 }, s, sl)) {
+        t.state.registreringer.push(...forPersoner({ ...data, ...x }, valg.personer, newId, migITeam()));
+      }
+    } else {
       // Arket kan holde en ældre kopi, hvis der er kommet data fra en anden enhed.
       const aktuel = t.state.registreringer.find((r) => r.id === entry.id) ?? entry;
       erstat('registreringer', markerRettelse({ ...aktuel, ...data, ...(valg.personer && { person: valg.personer[0] }) }, migITeam()));

@@ -986,3 +986,66 @@ test('forbrugTekst kan sendes til kunden', () => {
     'Udestående i dag: 620,00 kr',
   ].join('\n'));
 });
+
+// --- Flere timepriser ---------------------------------------------------------------
+
+import { erHelligdag, satsVed, tidsstykker } from '../core.js';
+
+const lok = (...a) => new Date(...a).toISOString();
+const kundeMedSatser = {
+  timepris: 500,
+  satser: [
+    { navn: 'Weekend', timepris: 800, dage: [6, 0], fra: '', til: '', helligdage: true },
+    { navn: 'Aften', timepris: 650, dage: [1, 2, 3, 4, 5], fra: '18:00', til: '06:00', helligdage: false },
+  ],
+};
+
+test('danske helligdage', () => {
+  assert.equal(erHelligdag(new Date(2026, 3, 5)), true); // påskedag 2026
+  assert.equal(erHelligdag(new Date(2026, 3, 2)), true); // skærtorsdag
+  assert.equal(erHelligdag(new Date(2026, 4, 14)), true); // Kr. himmelfart
+  assert.equal(erHelligdag(new Date(2026, 4, 25)), true); // 2. pinsedag
+  assert.equal(erHelligdag(new Date(2026, 11, 25)), true);
+  assert.equal(erHelligdag(new Date(2026, 0, 1)), true);
+  assert.equal(erHelligdag(new Date(2026, 4, 1)), false); // store bededag er afskaffet
+  assert.equal(erHelligdag(new Date(2026, 3, 7)), false);
+});
+
+test('satsVed vælger efter ugedag, tidsrum og helligdag', () => {
+  assert.equal(satsVed(kundeMedSatser, new Date(2026, 10, 13, 10)).timepris, 500); // fredag formiddag
+  assert.equal(satsVed(kundeMedSatser, new Date(2026, 10, 13, 19)).timepris, 650); // fredag aften
+  assert.equal(satsVed(kundeMedSatser, new Date(2026, 10, 14, 3)).timepris, 800); // lørdag nat: højeste vinder
+  assert.equal(satsVed(kundeMedSatser, new Date(2026, 10, 17, 3)).timepris, 650); // tirsdag nat fra mandag aften
+  assert.equal(satsVed(kundeMedSatser, new Date(2026, 3, 6, 10)).timepris, 800); // 2. påskedag, mandag
+  assert.equal(satsVed({ timepris: 500 }, new Date()).timepris, 500);
+  assert.equal(satsVed({ timepris: 500, satser: [{ navn: 'x', timepris: 'fejl' }] }, new Date()).timepris, 500);
+});
+
+test('tidsstykker deler ved grænserne og samler ens priser', () => {
+  assert.deepEqual(tidsstykker(kundeMedSatser, lok(2026, 10, 13, 16), lok(2026, 10, 13, 20)), [
+    { start: lok(2026, 10, 13, 16), slut: lok(2026, 10, 13, 18), timepris: 500 },
+    { start: lok(2026, 10, 13, 18), slut: lok(2026, 10, 13, 20), timepris: 650 },
+  ]);
+  // Fredag aften over midnat ind i weekenden.
+  assert.deepEqual(tidsstykker(kundeMedSatser, lok(2026, 10, 13, 22), lok(2026, 10, 14, 2)).map((s) => s.timepris), [650, 800]);
+  // Hele lørdagen er ét stykke.
+  assert.equal(tidsstykker(kundeMedSatser, lok(2026, 10, 14, 8), lok(2026, 10, 14, 17)).length, 1);
+  assert.deepEqual(tidsstykker({ timepris: 500 }, lok(2026, 10, 13, 8), lok(2026, 10, 13, 9)), [
+    { start: lok(2026, 10, 13, 8), slut: lok(2026, 10, 13, 9), timepris: 500 },
+  ]);
+});
+
+test('et stoppet ur deles i registreringer pr. timepris og person', () => {
+  let n = 0;
+  const ur = { kundeId: 'k', opgavetypeId: 't', start: lok(2026, 10, 13, 17), deltagere: ['a', 'b'] };
+  const nye = registreringerFraUr(ur, { slut: lok(2026, 10, 13, 19), timepris: kundeMedSatser, nyId: () => `id${n++}`, person: 'a', medlemmer: ['a', 'b'] });
+  assert.equal(nye.length, 4);
+  assert.deepEqual(nye.map((r) => [r.person, r.timepris]), [['a', 500], ['b', 500], ['a', 650], ['b', 650]]);
+  assert.equal(nye[0].id, 'id0');
+});
+
+test('backup med satser er gyldig', () => {
+  const b = { version: 1, kunder: [{ id: 'k', navn: 'A', ...kundeMedSatser }], opgavetyper: [], registreringer: [] };
+  assert.equal(validateBackup(b).ok, true);
+  assert.equal(validateBackup({ ...b, kunder: [{ id: 'k', navn: 'A', timepris: 1, satser: 'x' }] }).ok, false);
+});

@@ -103,6 +103,13 @@ test('kunde kan være med eller uden moms', async () => {
   await assertFails(setDoc(doc(ven(), 'brugere/ven/kunder/k5'), { ...kunde, moms: 'ja' }));
 });
 
+test('kunde kan have særlige timepriser', async () => {
+  const sats = { navn: 'Weekend', timepris: 800, dage: [6, 0], fra: '', til: '', helligdage: true };
+  await assertSucceeds(setDoc(doc(ven(), 'brugere/ven/kunder/k6'), { ...kunde, satser: [sats] }));
+  await assertSucceeds(setDoc(doc(ven(), 'brugere/ven/kunder/k7'), { ...kunde, satser: [] }));
+  await assertFails(setDoc(doc(ven(), 'brugere/ven/kunder/k8'), { ...kunde, satser: 'weekend' }));
+});
+
 test('registrering skal have slut efter start og rigtige felter', async () => {
   await assertSucceeds(setDoc(doc(ven(), 'brugere/ven/registreringer/r1'), reg));
   await assertFails(setDoc(doc(ven(), 'brugere/ven/registreringer/r2'), { ...reg, slut: reg.start }));

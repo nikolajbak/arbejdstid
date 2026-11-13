@@ -74,6 +74,9 @@ cd push && npx wrangler dev --port 8787    # workeren lokalt (kræver push/.dev.
 - **Afrunding:** hver registrering tæller mindst 15 min og rundes op til
   nærmeste kvarter i både tid og beløb. Start/slut gemmes præcist, så
   afrundingen sker ved visning og beregning.
+- **Særlige timepriser** (`satser` på kunden: ugedage, tidsrum, helligdage) vælges i
+  lokal tid; højeste pris vinder. Tid, der krydser en grænse, gemmes som flere
+  registreringer (`tidsstykker` i `core.js`), og hver del rundes op for sig.
 - **Betalinger dækker ældste tid og udgifter først**; derfra kommer
   »Afregnet«/»Delvist afregnet« og »afregnet til og med«.
 - **Tid for en anden** venter på personens godkendelse og tæller ikke i

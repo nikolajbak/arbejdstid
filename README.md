@@ -84,7 +84,7 @@ få et overblik og en CSV-fil til fakturering.
   niveau. Tryk på en opgave for at rette den, skifte niveau eller slette den.
   Opgaverne følger kunden, når den flyttes til et team, og kommer med i
   backuppen.
-- **Indstillinger:** kunder (navn, timepris, farve), opgavetyper, og under Mere:
+- **Indstillinger:** kunder (navn, timepris, særlige timepriser fx weekend/aften/helligdage, farve), opgavetyper, og under Mere:
   Brugere (administratorer), Backup, Notifikationer og Konto.
 
 Appen er en PWA: den kører i browseren, kan lægges på hjemmeskærmen og virker
