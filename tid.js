@@ -23,7 +23,7 @@ function urTekst(start) {
 function gemteBesked(nye) {
   if (!nye.length) return;
   const personer = new Set(nye.map((r) => r.person ?? ''));
-  const ms = nye.filter((r) => (r.person ?? '') === (nye[0].person ?? '')).reduce((sum, r) => sum + durationMs(r, t.state.registreringer), 0);
+  const ms = nye.filter((r) => (r.person ?? '') === (nye[0].person ?? '')).reduce((sum, r) => sum + durationMs(r), 0);
   besked(`Gemte ${navnPaa(t.state.kunder, nye[0].kundeId)} · ${formatDuration(ms)}${personer.size > 1 ? ` × ${personer.size} personer` : ''}`);
 }
 
@@ -94,9 +94,7 @@ function stop() {
 
 // "Hvad lavede du?" Lukkes arket uden valg, kører uret videre.
 function stopArk(ur, slut) {
-  const stykker = tidsstykker(prisPaa(ur.kundeId), ur.start, slut).map((x) => ({ ...x, kundeId: ur.kundeId, person: migITeam() }));
-  // Stykkerne rundes op sammen med dagens øvrige registreringer.
-  const medStykker = [...t.state.registreringer, ...stykker];
+  const stykker = tidsstykker(prisPaa(ur.kundeId), ur.start, slut).map((x) => ({ ...x, kundeId: ur.kundeId }));
   const note = h('input', { value: ur.note ?? '', autocomplete: 'off', placeholder: 'Valgfri' });
   const gem = (opgavetypeId) => { lukArk(); gemUr(ur, slut, opgavetypeId, note.value.trim()); };
   const nyFelt = h('input', { autocomplete: 'off', placeholder: 'Ny opgave', enterkeyhint: 'done' });
@@ -119,8 +117,8 @@ function stopArk(ur, slut) {
     arkTop('Hvad lavede du?'),
     h('div', { class: 'stop-top blod', 'data-farve': farvePaa(ur.kundeId) },
       h('span', { class: 'kunde' }, navnPaa(t.state.kunder, ur.kundeId)),
-      h('span', { class: 'tid' }, formatDuration(stykker.reduce((sum, x) => sum + durationMs(x, medStykker), 0))),
-      h('span', {}, formatKr(stykker.reduce((sum, x) => sum + amountOf(x, t.state.kunder, medStykker), 0))),
+      h('span', { class: 'tid' }, formatDuration(stykker.reduce((sum, x) => sum + durationMs(x), 0))),
+      h('span', {}, formatKr(stykker.reduce((sum, x) => sum + amountOf(x, t.state.kunder), 0))),
     ),
     h('div', { class: 'chips', 'data-farve': farvePaa(ur.kundeId) },
       typer.map((x) => chip(x.navn, { onclick: () => gem(x.id) })),

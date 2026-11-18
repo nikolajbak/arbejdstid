@@ -3,48 +3,42 @@
 const TIME_MS = 3600000;
 const KVARTER_MS = 15 * 60000;
 
-// Tiden der faktureres. Oprundingen sker pr. arbejdsdag: en dags registreringer
-// for samme kunde og person lægges sammen og rundes op til nærmeste kvarter, mindst
-// ét. Afventende registreringer rundes for sig, til de er godkendt. Summen fordeles
-// i starttidens rækkefølge: hver registrering får forskellen mellem den oprundede sum
-// til og med sig selv og den før, så tre á 5 min giver 15 + 0 + 0, og en senere
-// registrering ændrer ikke de tidligere. Start og slut gemmes uændret.
+// Tiden der faktureres. Hver registrering tæller sine faktiske minutter; oprundingen
+// sker pr. arbejdsdag: en dags registreringer for samme kunde og person lægges
+// sammen og rundes op til nærmeste kvarter, mindst ét. Afventende rundes for sig,
+// til de er godkendt. Tillægget lægges på dagens sidste registrering (efter start)
+// og faktureres til dens timepris. Start og slut gemmes uændret.
 const opKvarter = (ms) => Math.max(1, Math.ceil(ms / KVARTER_MS)) * KVARTER_MS;
-const raaMs = (e) => new Date(e.slut) - new Date(e.start);
-const iSammeGruppe = (a, b) => a.kundeId === b.kundeId && (a.person ?? null) === (b.person ?? null)
-  && !a.afventer === !b.afventer && dayKey(a.start) === dayKey(b.start);
 
-// Den fakturerede tid pr. registrering (Map nøglet på objektet) for hele listen.
-export function dagsTider(registreringer) {
+// Dagens oprunding pr. registrering, der bærer den (Map nøglet på objektet; kun
+// registreringer med et tillæg over nul er med).
+export function dagsAfrunding(registreringer) {
   const grupper = new Map();
   for (const e of registreringer) {
     const g = `${dayKey(e.start)}|${e.kundeId}|${e.person ?? ''}|${e.afventer ? 1 : 0}`;
     if (!grupper.has(g)) grupper.set(g, []);
     grupper.get(g).push(e);
   }
-  const tider = new Map();
+  const tillaeg = new Map();
   for (const liste of grupper.values()) {
-    liste.sort((a, b) => new Date(a.start) - new Date(b.start) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-    let sum = 0;
-    let foer = 0;
-    for (const e of liste) {
-      sum += raaMs(e);
-      const op = opKvarter(sum);
-      tider.set(e, op - foer);
-      foer = op;
-    }
+    const sum = liste.reduce((n, e) => n + durationMs(e), 0);
+    const sidste = liste.reduce((a, b) => (new Date(b.start) - new Date(a.start) || (b.id > a.id ? 1 : -1)) > 0 ? b : a);
+    const ms = opKvarter(sum) - sum;
+    if (ms > 0) tillaeg.set(sidste, ms);
   }
-  return tider;
+  return tillaeg;
 }
 
-// Én registrerings fakturerede tid. alle er de registreringer, den deles med; er
-// den ikke selv med (fx et ur, der er ved at blive gemt), regnes den som den nyeste.
-// Uden alle rundes den for sig.
-export function durationMs(entry, alle = null) {
-  if (!alle) return opKvarter(raaMs(entry));
-  const gruppe = alle.filter((x) => x !== entry && iSammeGruppe(x, entry));
-  return dagsTider([...gruppe, entry]).get(entry);
+// Den fakturerede tid pr. registrering inkl. dagens oprunding (Map nøglet på objektet).
+export function dagsTider(registreringer) {
+  const tillaeg = dagsAfrunding(registreringer);
+  return new Map(registreringer.map((e) => [e, durationMs(e) + (tillaeg.get(e) ?? 0)]));
 }
+
+export const AFRUNDING = 'Afrunding til kvarter';
+
+// Én registrerings faktiske tid, uden oprunding.
+export const durationMs = (entry) => new Date(entry.slut) - new Date(entry.start);
 
 // Kunder med moms betaler 25 % oven i timeprisen. kunder kan udelades, så er det uden moms.
 export const MOMS = 0.25;
@@ -53,8 +47,9 @@ export const medMoms = (kunder, kundeId) => kunder.find((k) => k.id === kundeId)
 
 const beloebFor = (entry, ms, kunder) => (ms / TIME_MS) * entry.timepris * (medMoms(kunder, entry.kundeId) ? 1 + MOMS : 1);
 
-export function amountOf(entry, kunder = [], alle = null) {
-  return beloebFor(entry, durationMs(entry, alle), kunder);
+// Én registrerings beløb for de faktiske minutter, uden oprunding.
+export function amountOf(entry, kunder = []) {
+  return beloebFor(entry, durationMs(entry), kunder);
 }
 
 // --- Flere timepriser ----------------------------------------------------------------
@@ -595,10 +590,12 @@ const csvFelt = (v) => {
   return /[;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 
-// personNavn(uid) giver i et team en sidste kolonne, Person. helhed er de registreringer,
-// dagsoprundingen regnes ud fra, når entries kun er et udsnit (fx det udestående).
+// personNavn(uid) giver i et team en sidste kolonne, Person. Registreringerne står med
+// deres faktiske tid; dagens oprunding følger efter dagens sidste som en række for sig.
+// helhed er de registreringer, oprundingen regnes ud fra, når entries kun er et
+// udsnit (fx det udestående).
 export function toCSV(entries, kunder, opgavetyper, poster = [], personNavn = null, helhed = entries) {
-  const tider = dagsTider(helhed);
+  const tillaeg = dagsAfrunding(helhed);
   const linjer = [`Dato;Start;Slut;Kunde;Opgavetype;Timer;Timepris;Beløb;Heraf moms;Note${personNavn ? ';Person' : ''}`];
   const person = (x) => (personNavn ? `;${csvFelt(x.person ? personNavn(x.person) : '')}` : '');
   const dansk = (d) => `${p2(d.getDate())}-${p2(d.getMonth() + 1)}-${d.getFullYear()}`;
@@ -614,21 +611,19 @@ export function toCSV(entries, kunder, opgavetyper, poster = [], personNavn = nu
       linjer.push([...felter, csvTal(postBeloeb(p)), p.moms ? csvTal(p.moms) : '', csvFelt(p.note)].join(';') + person(p));
       continue;
     }
-    const s = t;
-    const ms = tider.get(e) ?? durationMs(e, helhed);
-    const kr = beloebFor(e, ms, kunder);
-    linjer.push([
-      dansk(s),
-      klokken(s),
-      klokken(new Date(e.slut)),
-      navnPaa(kunder, e.kundeId),
-      e.opgavetypeId ? navnPaa(opgavetyper, e.opgavetypeId) : '',
-      csvTal(ms / TIME_MS),
-      csvTal(e.timepris),
-      csvTal(kr),
-      medMoms(kunder, e.kundeId) ? csvTal(kr - kr / (1 + MOMS)) : '',
-      e.note,
-    ].map(csvFelt).join(';') + person(e));
+    const tid = (start, slut, opgave, ms, note) => {
+      const kr = beloebFor(e, ms, kunder);
+      linjer.push([
+        dansk(t), start, slut, navnPaa(kunder, e.kundeId), opgave,
+        csvTal(ms / TIME_MS),
+        csvTal(e.timepris),
+        csvTal(kr),
+        medMoms(kunder, e.kundeId) ? csvTal(kr - kr / (1 + MOMS)) : '',
+        note,
+      ].map(csvFelt).join(';') + person(e));
+    };
+    tid(klokken(t), klokken(new Date(e.slut)), e.opgavetypeId ? navnPaa(opgavetyper, e.opgavetypeId) : '', durationMs(e), e.note);
+    if (tillaeg.has(e)) tid('', '', AFRUNDING, tillaeg.get(e), '');
   }
   return '﻿' + linjer.join('\r\n');
 }

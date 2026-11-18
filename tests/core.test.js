@@ -2,24 +2,20 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   nyeInvitationer, soegBrugere, soegFaerdigheder, foreslaaFaerdigheder, egenFaerdighed, foedselsdagTekst, profilTal,
-  durationMs, amountOf, formatDuration, formatKr, parseHours, validateEntry,
+  durationMs, amountOf, dagsAfrunding, dagsTider, formatDuration, formatKr, parseHours, validateEntry,
 } from '../core.js';
 
 test('durationMs er slut minus start', () => {
   assert.equal(durationMs({ start: '2026-10-07T09:00:00', slut: '2026-10-07T11:15:00' }), 8100000);
 });
 
-test('durationMs runder op til nærmeste kvarter', () => {
-  assert.equal(durationMs({ start: '2026-10-07T09:00:00', slut: '2026-10-07T09:16:00' }), 30 * 60000);
-  assert.equal(durationMs({ start: '2026-10-07T09:00:00', slut: '2026-10-07T10:00:01' }), 75 * 60000);
+test('durationMs er den faktiske tid, uden oprunding', () => {
+  assert.equal(durationMs({ start: '2026-10-07T09:00:00', slut: '2026-10-07T09:16:00' }), 16 * 60000);
+  assert.equal(durationMs({ start: '2026-10-07T09:00:00', slut: '2026-10-07T09:00:30' }), 30000);
 });
 
-test('durationMs giver mindst 15 minutter', () => {
-  assert.equal(durationMs({ start: '2026-10-07T09:00:00', slut: '2026-10-07T09:00:30' }), 15 * 60000);
-});
-
-test('amountOf regner med den afrundede tid', () => {
-  assert.equal(amountOf({ start: '2026-10-07T09:00:00', slut: '2026-10-07T09:05:00', timepris: 800 }), 200);
+test('amountOf regner med den faktiske tid', () => {
+  assert.equal(amountOf({ start: '2026-10-07T09:00:00', slut: '2026-10-07T09:06:00', timepris: 800 }), 80);
 });
 
 test('amountOf bruger registreringens egen timepris', () => {
@@ -1052,26 +1048,28 @@ test('backup med satser er gyldig', () => {
 
 // --- Oprunding pr. arbejdsdag -----------------------------------------------------
 
-
 const dagReg = (id, fra, til, ekstra = {}) => ({ id, kundeId: 'k', opgavetypeId: '', start: `2026-10-07T${fra}:00`, slut: `2026-10-07T${til}:00`, timepris: 800, note: '', ...ekstra });
+const K = [{ id: 'k', navn: 'K' }];
+const tillaegListe = (alle) => [...dagsAfrunding(alle)].map(([e, ms]) => [e.id, ms / 60000]);
 
-test('korte registreringer samme dag deler ét kvarter', () => {
-  const alle = [dagReg('a', '09:00', '09:05'), dagReg('b', '10:00', '10:05'), dagReg('c', '11:00', '11:05')];
-  assert.deepEqual(alle.map((e) => durationMs(e, alle) / 60000), [15, 0, 0]);
-  assert.equal(alle.reduce((s, e) => s + amountOf(e, [], alle), 0), 200);
+test('hver registrering tæller sine faktiske minutter', () => {
+  assert.equal(durationMs(dagReg('a', '09:00', '09:05')), 5 * 60000);
+  assert.equal(amountOf(dagReg('a', '09:00', '09:06')), 80);
 });
 
-test('dagens sum rundes op; det ekstra kvarter lander på registreringen, der krydser grænsen', () => {
-  const alle = [dagReg('a', '09:00', '09:10'), dagReg('b', '10:00', '10:10')];
-  assert.deepEqual(alle.map((e) => durationMs(e, alle) / 60000), [15, 15]);
-  const tre = [...alle, dagReg('c', '11:00', '11:05')];
-  assert.deepEqual(tre.map((e) => durationMs(e, tre) / 60000), [15, 15, 0]);
+test('dagens sum rundes op én gang; tillægget ligger på dagens sidste registrering', () => {
+  const alle = [dagReg('a', '09:00', '09:05'), dagReg('c', '11:00', '11:02'), dagReg('b', '10:00', '10:05')];
+  assert.deepEqual(tillaegListe(alle), [['c', 3]]);
+  const tider = dagsTider(alle);
+  assert.deepEqual(alle.map((e) => tider.get(e) / 60000), [5, 5, 5]);
 });
 
-test('rækkefølgen i listen er ligegyldig; fordelingen følger starttiden', () => {
-  const alle = [dagReg('b', '10:00', '10:05'), dagReg('a', '09:00', '09:05')];
-  assert.equal(durationMs(alle[1], alle), 15 * 60000);
-  assert.equal(durationMs(alle[0], alle), 0);
+test('går dagens sum op i hele kvarterer, er der intet tillæg', () => {
+  assert.deepEqual(tillaegListe([dagReg('a', '09:00', '09:10'), dagReg('b', '10:00', '10:05')]), []);
+});
+
+test('en enkelt kort registrering rundes op til et kvarter', () => {
+  assert.deepEqual(tillaegListe([dagReg('a', '09:00', '09:01')]), [['a', 14]]);
 });
 
 test('forskellige dage, kunder, personer og afventende rundes hver for sig', () => {
@@ -1082,28 +1080,32 @@ test('forskellige dage, kunder, personer og afventende rundes hver for sig', () 
     dagReg('d', '09:00', '09:05', { person: 'p2' }),
     dagReg('e', '09:30', '09:35', { afventer: true }),
   ];
-  for (const e of alle) assert.equal(durationMs(e, alle), 15 * 60000, e.id);
+  assert.deepEqual(tillaegListe(alle).map(([, ms]) => ms), [10, 10, 10, 10, 10]);
 });
 
-test('uden listen rundes registreringen for sig', () => {
-  assert.equal(durationMs(dagReg('a', '09:00', '09:05')), 15 * 60000);
-});
-
-test('summarize, saldoer og groupByDay bruger dagsoprundingen', () => {
+test('summarize, saldoer og groupByDay tæller dagens oprunding med', () => {
   const alle = [dagReg('a', '09:00', '09:05'), dagReg('b', '10:00', '10:05')];
-  assert.equal(summarize(alle, [{ id: 'k', navn: 'K' }], []).ms, 15 * 60000);
-  assert.equal(saldoer(alle, [], [{ id: 'k', navn: 'K' }])[0].saldo, 200);
+  assert.equal(summarize(alle, K, []).ms, 15 * 60000);
+  assert.ok(Math.abs(saldoer(alle, [], K)[0].saldo - 200) < 1e-9);
   assert.equal(groupByDay(alle)[0].ms, 15 * 60000);
 });
 
-test('toCSV af et udsnit bruger fordelingen fra hele listen', () => {
-  const alle = [dagReg('a', '09:00', '09:05'), dagReg('b', '10:00', '10:05')];
-  const csv = toCSV([alle[1]], [{ id: 'k', navn: 'K' }], [], [], null, alle);
-  assert.match(csv.split('\r\n')[1], /;0,00;800,00;0,00;/);
+test('tillægget faktureres til den sidste registrerings timepris', () => {
+  const alle = [dagReg('a', '16:55', '17:00'), dagReg('b', '17:00', '17:50', { timepris: 1000 })];
+  assert.deepEqual(tillaegListe(alle), [['b', 5]]);
+  assert.ok(Math.abs(saldoer(alle, [], K)[0].saldo - (5 / 60 * 800 + 55 / 60 * 1000)) < 1e-9);
 });
 
-test('tid delt ved en prisgrænse rundes op samlet, ikke pr. stykke', () => {
-  const alle = [dagReg('a', '16:55', '17:00'), dagReg('b', '17:00', '17:55', { timepris: 1000 })];
-  assert.deepEqual(alle.map((e) => durationMs(e, alle) / 60000), [15, 45]);
-  assert.equal(alle.reduce((s, e) => s + amountOf(e, [], alle), 0), 200 + 750);
+test('toCSV viser faktisk tid og oprundingen som egen række', () => {
+  const alle = [dagReg('a', '09:00', '09:05'), dagReg('b', '10:00', '10:05')];
+  const r = toCSV(alle, K, []).split('\r\n');
+  assert.equal(r.length, 4);
+  assert.match(r[1], /;09:00;09:05;K;;0,08;800,00;66,67;/);
+  assert.match(r[3], /;;;K;Afrunding til kvarter;0,08;800,00;66,67;/);
+});
+
+test('toCSV af et udsnit tager oprundingen fra hele listen', () => {
+  const alle = [dagReg('a', '09:00', '09:05'), dagReg('b', '10:00', '10:05')];
+  assert.equal(toCSV([alle[0]], K, [], [], null, alle).split('\r\n').length, 2);
+  assert.equal(toCSV([alle[1]], K, [], [], null, alle).split('\r\n').length, 3);
 });

@@ -71,12 +71,13 @@ cd push && npx wrangler dev --port 8787    # workeren lokalt (kræver push/.dev.
 
 ## Faldgruber
 
-- **Afrunding pr. arbejdsdag** (Nikolaj 2026-11-18): en dags registreringer
-  for samme kunde og person summeres og rundes op til nærmeste kvarter, mindst
-  15 min; afventende for sig. Summen fordeles i starttidsorden (`dagsTider` i
-  `core.js`), så tre á 5 min giver 15 + 0 + 0. `durationMs`/`amountOf` på én
-  registrering skal derfor have hele listen med (`t.state.registreringer`);
-  uden den rundes den for sig. Start/slut gemmes præcist.
+- **Afrunding pr. arbejdsdag** (Nikolaj 2026-11-18): hver registrering viser
+  og tæller sine faktiske minutter (`durationMs`/`amountOf`). Dagens sum for
+  samme kunde og person rundes op til nærmeste kvarter, mindst 15 min;
+  afventende for sig. Tillægget (`dagsAfrunding` i `core.js`) ligger på dagens
+  sidste registrering til dens timepris og indgår i alle summer via
+  `dagsTider`; i CSV er det en egen række »Afrunding til kvarter«. Rækker
+  summer derfor ikke til dagens total. Start/slut gemmes præcist.
 - **Særlige timepriser** (`satser` på kunden: ugedage, tidsrum, helligdage) vælges i
   lokal tid; højeste pris vinder. Tid, der krydser en grænse, gemmes som flere
   registreringer (`tidsstykker` i `core.js`); de indgår i dagsoprundingen som

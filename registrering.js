@@ -27,8 +27,8 @@ export function registreringsRaekke(e, status, { udenKunde = false } = {}) {
       h('span', { class: 'under' }, maerke, maerke && ' · ', `${t.team && e.person ? `${personNavn(t.team, e.person)} · ` : ''}${klokken(e.start)}–${klokken(e.slut)}${e.note ? ` · ${e.note}` : ''}`),
     ),
     h('span', { class: 'tal' },
-      h('span', { class: 'titel' }, formatDuration(durationMs(e, t.state.registreringer))),
-      h('span', { class: 'under' }, formatKr(amountOf(e, t.state.kunder, t.state.registreringer))),
+      h('span', { class: 'titel' }, formatDuration(durationMs(e))),
+      h('span', { class: 'under' }, formatKr(amountOf(e, t.state.kunder))),
     ),
   );
 }
