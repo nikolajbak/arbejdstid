@@ -201,7 +201,8 @@ function kundeSide(id) {
   const csv = () => downloadFile(
     `arbejdstid-${navnPaaKunde(id).replace(/[^\p{L}\p{N}]+/gu, '-')}-udestaaende-${dayKey(new Date())}.csv`,
     toCSV(o.udestaaende.filter((l) => l.slags === 'registrering').map((l) => l.x), t.state.kunder, t.state.opgavetyper,
-      o.udestaaende.filter((l) => l.slags === 'post').map((l) => l.x), t.team ? (p) => personNavn(t.team, p) : null),
+      o.udestaaende.filter((l) => l.slags === 'post').map((l) => l.x), t.team ? (p) => personNavn(t.team, p) : null,
+      godkendte(t.state.registreringer)),
     'text/csv;charset=utf-8',
   );
   const msIAlt = o.opgaver.reduce((n, x) => n + x.ms, 0);

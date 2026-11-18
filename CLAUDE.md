@@ -71,12 +71,16 @@ cd push && npx wrangler dev --port 8787    # workeren lokalt (kræver push/.dev.
 
 ## Faldgruber
 
-- **Afrunding:** hver registrering tæller mindst 15 min og rundes op til
-  nærmeste kvarter i både tid og beløb. Start/slut gemmes præcist, så
-  afrundingen sker ved visning og beregning.
+- **Afrunding pr. arbejdsdag** (Nikolaj 2026-11-18): en dags registreringer
+  for samme kunde og person summeres og rundes op til nærmeste kvarter, mindst
+  15 min; afventende for sig. Summen fordeles i starttidsorden (`dagsTider` i
+  `core.js`), så tre á 5 min giver 15 + 0 + 0. `durationMs`/`amountOf` på én
+  registrering skal derfor have hele listen med (`t.state.registreringer`);
+  uden den rundes den for sig. Start/slut gemmes præcist.
 - **Særlige timepriser** (`satser` på kunden: ugedage, tidsrum, helligdage) vælges i
   lokal tid; højeste pris vinder. Tid, der krydser en grænse, gemmes som flere
-  registreringer (`tidsstykker` i `core.js`), og hver del rundes op for sig.
+  registreringer (`tidsstykker` i `core.js`); de indgår i dagsoprundingen som
+  alle andre, så delingen ikke giver ekstra kvarterer.
 - **Betalinger dækker ældste tid og udgifter først**; derfra kommer
   »Afregnet«/»Delvist afregnet« og »afregnet til og med«.
 - **Tid for en anden** venter på personens godkendelse og tæller ikke i

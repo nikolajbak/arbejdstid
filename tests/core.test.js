@@ -1049,3 +1049,61 @@ test('backup med satser er gyldig', () => {
   assert.equal(validateBackup(b).ok, true);
   assert.equal(validateBackup({ ...b, kunder: [{ id: 'k', navn: 'A', timepris: 1, satser: 'x' }] }).ok, false);
 });
+
+// --- Oprunding pr. arbejdsdag -----------------------------------------------------
+
+
+const dagReg = (id, fra, til, ekstra = {}) => ({ id, kundeId: 'k', opgavetypeId: '', start: `2026-10-07T${fra}:00`, slut: `2026-10-07T${til}:00`, timepris: 800, note: '', ...ekstra });
+
+test('korte registreringer samme dag deler ét kvarter', () => {
+  const alle = [dagReg('a', '09:00', '09:05'), dagReg('b', '10:00', '10:05'), dagReg('c', '11:00', '11:05')];
+  assert.deepEqual(alle.map((e) => durationMs(e, alle) / 60000), [15, 0, 0]);
+  assert.equal(alle.reduce((s, e) => s + amountOf(e, [], alle), 0), 200);
+});
+
+test('dagens sum rundes op; det ekstra kvarter lander på registreringen, der krydser grænsen', () => {
+  const alle = [dagReg('a', '09:00', '09:10'), dagReg('b', '10:00', '10:10')];
+  assert.deepEqual(alle.map((e) => durationMs(e, alle) / 60000), [15, 15]);
+  const tre = [...alle, dagReg('c', '11:00', '11:05')];
+  assert.deepEqual(tre.map((e) => durationMs(e, tre) / 60000), [15, 15, 0]);
+});
+
+test('rækkefølgen i listen er ligegyldig; fordelingen følger starttiden', () => {
+  const alle = [dagReg('b', '10:00', '10:05'), dagReg('a', '09:00', '09:05')];
+  assert.equal(durationMs(alle[1], alle), 15 * 60000);
+  assert.equal(durationMs(alle[0], alle), 0);
+});
+
+test('forskellige dage, kunder, personer og afventende rundes hver for sig', () => {
+  const alle = [
+    dagReg('a', '09:00', '09:05'),
+    dagReg('b', '09:00', '09:05', { start: '2026-10-08T09:00:00', slut: '2026-10-08T09:05:00' }),
+    dagReg('c', '09:00', '09:05', { kundeId: 'x' }),
+    dagReg('d', '09:00', '09:05', { person: 'p2' }),
+    dagReg('e', '09:30', '09:35', { afventer: true }),
+  ];
+  for (const e of alle) assert.equal(durationMs(e, alle), 15 * 60000, e.id);
+});
+
+test('uden listen rundes registreringen for sig', () => {
+  assert.equal(durationMs(dagReg('a', '09:00', '09:05')), 15 * 60000);
+});
+
+test('summarize, saldoer og groupByDay bruger dagsoprundingen', () => {
+  const alle = [dagReg('a', '09:00', '09:05'), dagReg('b', '10:00', '10:05')];
+  assert.equal(summarize(alle, [{ id: 'k', navn: 'K' }], []).ms, 15 * 60000);
+  assert.equal(saldoer(alle, [], [{ id: 'k', navn: 'K' }])[0].saldo, 200);
+  assert.equal(groupByDay(alle)[0].ms, 15 * 60000);
+});
+
+test('toCSV af et udsnit bruger fordelingen fra hele listen', () => {
+  const alle = [dagReg('a', '09:00', '09:05'), dagReg('b', '10:00', '10:05')];
+  const csv = toCSV([alle[1]], [{ id: 'k', navn: 'K' }], [], [], null, alle);
+  assert.match(csv.split('\r\n')[1], /;0,00;800,00;0,00;/);
+});
+
+test('tid delt ved en prisgrænse rundes op samlet, ikke pr. stykke', () => {
+  const alle = [dagReg('a', '16:55', '17:00'), dagReg('b', '17:00', '17:55', { timepris: 1000 })];
+  assert.deepEqual(alle.map((e) => durationMs(e, alle) / 60000), [15, 45]);
+  assert.equal(alle.reduce((s, e) => s + amountOf(e, [], alle), 0), 200 + 750);
+});

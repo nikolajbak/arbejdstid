@@ -3,11 +3,47 @@
 const TIME_MS = 3600000;
 const KVARTER_MS = 15 * 60000;
 
-// Tiden der faktureres: rundet op til nærmeste kvarter, mindst ét kvarter.
-// Start og slut gemmes uændret.
-export function durationMs(entry) {
-  const ms = new Date(entry.slut) - new Date(entry.start);
-  return Math.max(1, Math.ceil(ms / KVARTER_MS)) * KVARTER_MS;
+// Tiden der faktureres. Oprundingen sker pr. arbejdsdag: en dags registreringer
+// for samme kunde og person lægges sammen og rundes op til nærmeste kvarter, mindst
+// ét. Afventende registreringer rundes for sig, til de er godkendt. Summen fordeles
+// i starttidens rækkefølge: hver registrering får forskellen mellem den oprundede sum
+// til og med sig selv og den før, så tre á 5 min giver 15 + 0 + 0, og en senere
+// registrering ændrer ikke de tidligere. Start og slut gemmes uændret.
+const opKvarter = (ms) => Math.max(1, Math.ceil(ms / KVARTER_MS)) * KVARTER_MS;
+const raaMs = (e) => new Date(e.slut) - new Date(e.start);
+const iSammeGruppe = (a, b) => a.kundeId === b.kundeId && (a.person ?? null) === (b.person ?? null)
+  && !a.afventer === !b.afventer && dayKey(a.start) === dayKey(b.start);
+
+// Den fakturerede tid pr. registrering (Map nøglet på objektet) for hele listen.
+export function dagsTider(registreringer) {
+  const grupper = new Map();
+  for (const e of registreringer) {
+    const g = `${dayKey(e.start)}|${e.kundeId}|${e.person ?? ''}|${e.afventer ? 1 : 0}`;
+    if (!grupper.has(g)) grupper.set(g, []);
+    grupper.get(g).push(e);
+  }
+  const tider = new Map();
+  for (const liste of grupper.values()) {
+    liste.sort((a, b) => new Date(a.start) - new Date(b.start) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    let sum = 0;
+    let foer = 0;
+    for (const e of liste) {
+      sum += raaMs(e);
+      const op = opKvarter(sum);
+      tider.set(e, op - foer);
+      foer = op;
+    }
+  }
+  return tider;
+}
+
+// Én registrerings fakturerede tid. alle er de registreringer, den deles med; er
+// den ikke selv med (fx et ur, der er ved at blive gemt), regnes den som den nyeste.
+// Uden alle rundes den for sig.
+export function durationMs(entry, alle = null) {
+  if (!alle) return opKvarter(raaMs(entry));
+  const gruppe = alle.filter((x) => x !== entry && iSammeGruppe(x, entry));
+  return dagsTider([...gruppe, entry]).get(entry);
 }
 
 // Kunder med moms betaler 25 % oven i timeprisen. kunder kan udelades, så er det uden moms.
@@ -15,8 +51,10 @@ export const MOMS = 0.25;
 
 export const medMoms = (kunder, kundeId) => kunder.find((k) => k.id === kundeId)?.moms === true;
 
-export function amountOf(entry, kunder = []) {
-  return (durationMs(entry) / TIME_MS) * entry.timepris * (medMoms(kunder, entry.kundeId) ? 1 + MOMS : 1);
+const beloebFor = (entry, ms, kunder) => (ms / TIME_MS) * entry.timepris * (medMoms(kunder, entry.kundeId) ? 1 + MOMS : 1);
+
+export function amountOf(entry, kunder = [], alle = null) {
+  return beloebFor(entry, durationMs(entry, alle), kunder);
 }
 
 // --- Flere timepriser ----------------------------------------------------------------
@@ -134,7 +172,8 @@ export function postBeloeb(p) {
 export function saldoer(registreringer, poster, kunder) {
   const pr = new Map();
   const laeg = (id, kr) => pr.set(id, (pr.get(id) ?? 0) + kr);
-  for (const r of registreringer) laeg(r.kundeId, amountOf(r, kunder));
+  const tid = dagsTider(registreringer);
+  for (const r of registreringer) laeg(r.kundeId, beloebFor(r, tid.get(r), kunder));
   for (const p of poster) laeg(p.kundeId, postBeloeb(p));
   return [...pr]
     .filter(([, saldo]) => Math.abs(saldo) >= 0.005)
@@ -153,7 +192,8 @@ export function afregning(registreringer, poster, kunder = []) {
     if (!pr.has(id)) pr.set(id, { kredit: 0, linjer: [] });
     return pr.get(id);
   };
-  for (const r of registreringer) kunde(r.kundeId).linjer.push({ id: r.id, tid: new Date(r.start).getTime(), dag: dayKey(new Date(r.start)), kr: amountOf(r, kunder) });
+  const tider = dagsTider(registreringer);
+  for (const r of registreringer) kunde(r.kundeId).linjer.push({ id: r.id, tid: new Date(r.start).getTime(), dag: dayKey(new Date(r.start)), kr: beloebFor(r, tider.get(r), kunder) });
   for (const p of poster) {
     const kr = postBeloeb(p);
     if (kr < 0) kunde(p.kundeId).kredit -= kr;
@@ -196,13 +236,14 @@ export function kundeOversigt(kundeId, registreringer, poster, opgavetyper, kund
   const aabent = (id, kr) => (status.get(id) === 'afregnet' ? 0 : status.get(id) === 'delvis' ? rest.get(id) : kr);
   const typer = new Map();
   const linjer = [];
+  const tider = dagsTider(regs);
   for (const r of regs) {
-    const kr = amountOf(r, kunder);
+    const kr = beloebFor(r, tider.get(r), kunder);
     const l = { slags: 'registrering', x: r, tid: new Date(r.start).getTime(), dag: dayKey(new Date(r.start)), kr, aabent: aabent(r.id, kr) };
     linjer.push(l);
     if (!typer.has(r.opgavetypeId)) typer.set(r.opgavetypeId, { opgavetypeId: r.opgavetypeId, navn: typeNavn(opgavetyper, r.opgavetypeId), ms: 0, kr: 0, aabent: 0 });
     const ty = typer.get(r.opgavetypeId);
-    ty.ms += durationMs(r);
+    ty.ms += tider.get(r);
     ty.kr += kr;
     ty.aabent += l.aabent;
   }
@@ -288,12 +329,13 @@ const nyesteFoerst = (a, b) => new Date(b.start) - new Date(a.start);
 
 export function groupByDay(entries) {
   const dage = new Map();
+  const tider = dagsTider(entries);
   for (const e of [...entries].sort(nyesteFoerst)) {
     const dag = dayKey(e.start);
     if (!dage.has(dag)) dage.set(dag, { dag, ms: 0, entries: [] });
     const g = dage.get(dag);
     g.entries.push(e);
-    g.ms += durationMs(e);
+    g.ms += tider.get(e);
   }
   return [...dage.values()];
 }
@@ -476,9 +518,10 @@ export function summarize(entries, kunder, opgavetyper, poster = []) {
   };
   let ms = 0;
   let kr = 0;
+  const tider = dagsTider(entries);
   for (const e of entries) {
-    const d = durationMs(e);
-    const a = amountOf(e, kunder);
+    const d = tider.get(e);
+    const a = beloebFor(e, d, kunder);
     ms += d;
     kr += a;
     const k = kundeI(e.kundeId);
@@ -552,8 +595,10 @@ const csvFelt = (v) => {
   return /[;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 
-// personNavn(uid) giver i et team en sidste kolonne, Person.
-export function toCSV(entries, kunder, opgavetyper, poster = [], personNavn = null) {
+// personNavn(uid) giver i et team en sidste kolonne, Person. helhed er de registreringer,
+// dagsoprundingen regnes ud fra, når entries kun er et udsnit (fx det udestående).
+export function toCSV(entries, kunder, opgavetyper, poster = [], personNavn = null, helhed = entries) {
+  const tider = dagsTider(helhed);
   const linjer = [`Dato;Start;Slut;Kunde;Opgavetype;Timer;Timepris;Beløb;Heraf moms;Note${personNavn ? ';Person' : ''}`];
   const person = (x) => (personNavn ? `;${csvFelt(x.person ? personNavn(x.person) : '')}` : '');
   const dansk = (d) => `${p2(d.getDate())}-${p2(d.getMonth() + 1)}-${d.getFullYear()}`;
@@ -570,14 +615,15 @@ export function toCSV(entries, kunder, opgavetyper, poster = [], personNavn = nu
       continue;
     }
     const s = t;
-    const kr = amountOf(e, kunder);
+    const ms = tider.get(e) ?? durationMs(e, helhed);
+    const kr = beloebFor(e, ms, kunder);
     linjer.push([
       dansk(s),
       klokken(s),
       klokken(new Date(e.slut)),
       navnPaa(kunder, e.kundeId),
       e.opgavetypeId ? navnPaa(opgavetyper, e.opgavetypeId) : '',
-      csvTal(durationMs(e) / TIME_MS),
+      csvTal(ms / TIME_MS),
       csvTal(e.timepris),
       csvTal(kr),
       medMoms(kunder, e.kundeId) ? csvTal(kr - kr / (1 + MOMS)) : '',
@@ -868,9 +914,10 @@ export function profilTal(registreringer, uid, nu = new Date()) {
   const tom = () => ({ ms: 0, kr: 0 });
   const tal = { iAlt: tom(), maaned: tom(), aar: tom(), antal: egne.length, kunder: 0, topKundeId: null, snitTimepris: 0, foerste: null };
   const prKunde = new Map();
+  const tider = dagsTider(egne);
   for (const x of egne) {
-    const ms = durationMs(x);
-    const kr = amountOf(x);
+    const ms = tider.get(x);
+    const kr = beloebFor(x, ms, []);
     const d = new Date(x.start);
     const laeg = (t) => { t.ms += ms; t.kr += kr; };
     laeg(tal.iAlt);

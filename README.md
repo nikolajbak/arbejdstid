@@ -28,9 +28,11 @@ få et overblik og en CSV-fil til fakturering.
   udfyldes kun tomme felter. **Læs kvittering** læser billedet igen. Momsen
   gemmes i feltet *Heraf moms* og kommer med i CSV-eksporten, så posten er
   klar til bogføring. Tjek tallene, før du gemmer.
-- **Afrunding:** hver registrering tæller mindst 15 minutter og rundes op til
-  nærmeste kvarter, både i tid og beløb. Start og slut gemmes præcist, så
-  afrundingen gælder også gamle registreringer.
+- **Afrunding:** en dags registreringer for samme kunde lægges sammen og
+  rundes op til nærmeste kvarter, mindst 15 minutter, både i tid og beløb. Tre
+  registreringer á 5 minutter tæller altså ét kvarter: den første viser 0:15,
+  de næste 0:00. Start og slut gemmes præcist, så afrundingen gælder også gamle
+  registreringer.
 - **Profil:** øverst i Indstillinger. Her står dit navn, din e-mail og dine
   teams, og du kan tilføje din fødselsdag og dine færdigheder. Tryk på
   billedet (eller initialerne) for at vælge et profilbillede.
