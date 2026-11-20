@@ -3,7 +3,7 @@ import {
   sendPasswordResetEmail, reload, signOut,
 } from 'https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js';
 import {
-  doc, collection, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp,
+  doc, collection, getDoc, getDocFromCache, setDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp,
   terminate, clearIndexedDbPersistence,
 } from 'https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js';
 import { auth, db } from './firebase.js';
@@ -55,7 +55,14 @@ export async function logUd() {
 
 // --- Brugerdatabasen --------------------------------------------------------
 
+// Enhedens kopi bruges, hvis den findes, så opstarten ikke venter på nettet
+// (getDoc venter op til ca. 10 s på en dårlig forbindelse). lytGodkendelse
+// opdager bagefter, hvis adgangen er ændret eller fjernet.
 export async function hentGodkendelse(email) {
+  try {
+    const s = await getDocFromCache(godkendelse(email));
+    if (s.exists()) return s.data();
+  } catch { /* ikke på enheden: hent fra serveren */ }
   const s = await getDoc(godkendelse(email));
   return s.exists() ? s.data() : null;
 }

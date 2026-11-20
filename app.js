@@ -159,14 +159,23 @@ async function efterLogin(user) {
     // Et adgangsbevis fra før bekræftelsen mangler e-mail_verified, som reglerne kræver.
     // Uden net kan et udløbet bevis ikke fornyes; Firestore bruger så sin kopi og
     // synkroniserer, når der er forbindelse igen.
-    try {
-      if (!(await user.getIdTokenResult()).claims.email_verified) await user.getIdToken(true);
-    } catch (err) {
-      if (err.code !== 'auth/network-request-failed') throw err;
-    }
+    // Et udløbet bevis fornyes over nettet, hvilket kan tage op til 30 s på en
+    // dårlig forbindelse; efter et øjeblik fortsættes uden, og fornyelsen kører videre.
+    const bevis = (async () => {
+      try {
+        if (!(await user.getIdTokenResult()).claims.email_verified) await user.getIdToken(true);
+      } catch (err) {
+        if (err.code !== 'auth/network-request-failed') throw err;
+      }
+    })();
+    bevis.catch(console.error); // fejler den først efter ventetiden
+    await Promise.race([bevis, new Promise((ok) => setTimeout(ok, 1500))]);
     t.godk = await hentGodkendelse(user.email);
     if (!t.godk) return visIkkeInviteret();
-    await sikrProfil(user, t.godk);
+    // Første login skal vente: uid'et på godkendelsen markerer kontoen som oprettet.
+    // Ellers findes profilen næsten altid og tjekkes i baggrunden.
+    if (!t.godk.uid) await sikrProfil(user, t.godk);
+    else sikrProfil(user, t.godk).catch(console.error);
   } catch (err) {
     return visUde('Arbejdstid',
       h('p', { class: 'fejl' }, err.code === 'unavailable' ? fejlTekst('auth/network-request-failed') : fejlTekst(err.code)),

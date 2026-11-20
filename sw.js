@@ -1,4 +1,6 @@
-// Appens egne filer hentes fra nettet først og falder tilbage på cachen uden net.
+// Appens egne filer kommer fra cachen, så opstarten aldrig venter på nettet.
+// Siden spørger ved opstart (og når den kommer frem igen), om der er nyt; erDerNyt
+// henter så alle filer på én gang og siden genindlæser med den nye udgave samlet.
 // Derfor skal intet tal hæves ved en ny udgivelse: telefonerne får de nye filer af sig selv.
 const CACHE = 'arbejdstid';
 const FIREBASE = 'https://www.gstatic.com/firebasejs/13.0.0/';
@@ -39,8 +41,6 @@ const FILER = [
   ...['app', 'auth', 'firestore'].map((f) => `${FIREBASE}firebase-${f}.js`),
 ];
 
-const VENT_PAA_NET = 3000;
-
 const egen = (url) => url.startsWith(self.location.origin + '/');
 
 self.addEventListener('install', (e) => {
@@ -51,41 +51,36 @@ self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys()
       .then((navne) => Promise.all(navne.filter((n) => n !== CACHE).map((n) => caches.delete(n))))
+      .then(ryd)
       .then(() => self.clients.claim()),
   );
 });
 
-// Henter fra nettet forbi browserens HTTP-cache og gemmer svaret, hvis det lykkes.
-async function hentFrisk(request) {
-  const svar = await fetch(request, { cache: 'no-cache' });
-  if (svar.ok) {
-    const c = await caches.open(CACHE);
-    await c.put(request, svar.clone());
-  }
-  return svar;
+// Fjerner alt i cachen, der ikke er i FILER, fx adresser med ?team=… fra før.
+async function ryd() {
+  const c = await caches.open(CACHE);
+  const kendte = new Set(FILER.map((f) => new URL(f, self.location).href));
+  await Promise.all((await c.keys()).filter((r) => !kendte.has(r.url)).map((r) => c.delete(r)));
 }
 
-async function netFoerst(request) {
-  const net = hentFrisk(request);
-  const ur = new Promise((ok) => setTimeout(ok, VENT_PAA_NET));
-  try {
-    const svar = await Promise.race([net, ur]);
-    if (svar) return svar;
-  } catch { /* uden net: brug cachen */ }
+// Cachen først. Det, der mangler i cachen, hentes fra nettet uden at blive gemt:
+// kun FILER ligger i cachen, ellers kunne en gammel kopi med en adresse som
+// ./?team=… blive fundet før ./ (match ignorerer søgedelen).
+async function cacheFoerst(request) {
   const gemt = await caches.match(request, { ignoreSearch: true });
-  return gemt || net;
+  return gemt || fetch(request);
 }
 
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   // Kun appens egne filer og Firebase-koden. Alt andet (fx databasen) går direkte til nettet.
   const url = e.request.url;
-  if (egen(url)) e.respondWith(netFoerst(e.request));
+  if (egen(url)) e.respondWith(cacheFoerst(e.request));
   // Firebase-filerne har versionen i adressen og ændrer sig aldrig.
   else if (url.startsWith(FIREBASE)) e.respondWith(caches.match(e.request).then((svar) => svar || fetch(e.request)));
 });
 
-// Siden spørger, når appen kommer frem igen: er nogen af appens filer ændret siden sidst?
+// Siden spørger ved opstart og når appen kommer frem igen: er nogen af appens filer ændret siden sidst?
 // Svaret er sandt, hvis mindst én fil er ny. Cachen opdateres samtidig.
 async function erDerNyt() {
   const c = await caches.open(CACHE);

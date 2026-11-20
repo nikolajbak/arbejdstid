@@ -41,8 +41,10 @@ cd push && npx wrangler dev --port 8787    # workeren lokalt (kræver push/.dev.
 
 ## Udrulning
 
-- **Appen:** push til `main` → GitHub Pages. Intet versionsnummer: service
-  workeren henter netværk først og genindlæser selv ved ændrede filer.
+- **Appen:** push til `main` → GitHub Pages. Intet versionsnummer: appen
+  starter fra service workerens cache, spørger ved opstart (og når den kommer
+  frem igen) om nyt og genindlæser selv ved ændrede filer — første åbning efter
+  en udgivelse genindlæser derfor én gang.
   **En ny `.js`-fil skal med i `FILER` i `sw.js`**, ellers virker den ikke
   offline.
 - **`firestore.rules`:** udgives af GitHub Actions (`.github/workflows/regler.yml`),
@@ -91,6 +93,13 @@ cd push && npx wrangler dev --port 8787    # workeren lokalt (kræver push/.dev.
 - Emulatorerne kræver Java: `PATH` sættes i npm-scripterne til
   `/opt/homebrew/opt/openjdk@21/bin`.
 - Notifikationer på iPhone virker kun, når appen er åbnet fra hjemmeskærmen.
+- **Opstarten må ikke vente på nettet** (2026-11-20): med »netværk først« og
+  3 s ventetid pr. fil i 5 importtrin, plus `getDoc` på godkendelse og profil
+  (Firestore venter op til ca. 10 s på dårligt net) kunne opstarten tage
+  15–25 s på dårlig dækning. Nu: cache først i `sw.js`, godkendelsen fra
+  enhedens kopi (`hentGodkendelse`), `sikrProfil` i baggrunden efter første
+  login og højst 1,5 s ventetid på fornyelse af adgangsbeviset. Målt lokalt:
+  ca. 0,3 s til Tid er tegnet, også med 5 s forsinkelse pr. fil på serveren.
 
 ## Konventioner
 
