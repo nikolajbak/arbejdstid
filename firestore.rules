@@ -231,13 +231,31 @@ service cloud.firestore {
 
       function gyldigtTeam() {
         let d = request.resource.data;
-        return felter(['navn', 'medlemmer', 'navne', 'inviterede', 'oprettet'], ['navn', 'medlemmer', 'navne', 'inviterede', 'oprettet'])
+        return felter(['navn', 'medlemmer', 'navne', 'inviterede', 'oprettet'], ['navn', 'medlemmer', 'navne', 'inviterede', 'oprettet', 'sjakbejs', 'loen'])
+          && (!('sjakbejs' in d) || d.sjakbejs == null || d.sjakbejs is string)
+          && (!('loen' in d) || d.loen is map)
           && d.navn is string
           && d.navn.size() > 0
           && d.medlemmer is list
           && d.navne is map
           && d.inviterede is list
           && d.oprettet is timestamp;
+      }
+
+      // Sjakbejsen: har teamet ingen, eller er den gamle ikke længere medlem, kan ethvert
+      // medlem udpege en; ellers kun sjakbejsen selv. Den nye skal være medlem.
+      function sjakbejsOk() {
+        let foer = resource.data.get('sjakbejs', null);
+        let ny = request.resource.data.get('sjakbejs', null);
+        return ny == foer
+          || ((foer == null || !(foer in resource.data.medlemmer) || foer == request.auth.uid)
+            && (ny == null || ny in request.resource.data.medlemmer));
+      }
+
+      // Kun den, der allerede er sjakbejs, sætter timeløn.
+      function loenOk() {
+        return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['loen'])
+          || resource.data.get('sjakbejs', null) == request.auth.uid;
       }
 
       // Læses af medlemmer og inviterede, også som forespørgsel.
@@ -251,9 +269,12 @@ service cloud.firestore {
 
       allow update: if godkendt() && gyldigtTeam() && (
         // Et medlem må ændre navn, navne og invitationer og fjerne, men ikke tilføje, medlemmer.
+        // Sjakbejs og timeløn efter reglerne ovenfor.
         (request.auth.uid in resource.data.medlemmer
-          && kunAendret(['navn', 'navne', 'inviterede', 'medlemmer'])
-          && request.resource.data.medlemmer.toSet().difference(resource.data.medlemmer.toSet()).size() == 0)
+          && kunAendret(['navn', 'navne', 'inviterede', 'medlemmer', 'sjakbejs', 'loen'])
+          && request.resource.data.medlemmer.toSet().difference(resource.data.medlemmer.toSet()).size() == 0
+          && sjakbejsOk()
+          && loenOk())
         // En inviteret bliver medlem: tilføjer kun sig selv og fjerner kun sin egen invitation.
         || (egenEmail() in resource.data.inviterede
           && !(request.auth.uid in resource.data.medlemmer)
@@ -324,6 +345,26 @@ service cloud.firestore {
       match /bilag/{id} {
         allow read, delete: if medlem();
         allow create, update: if medlem() && gyldigtBilag();
+      }
+
+      // Sjakbejsens udbetalinger til medlemmerne. Alle medlemmer ser dem; kun sjakbejsen skriver.
+      match /udbetalinger/{id} {
+        function sjakbejs() {
+          return medlem() && team().get('sjakbejs', null) == request.auth.uid;
+        }
+
+        allow read: if medlem();
+        allow delete: if sjakbejs();
+        allow create, update: if sjakbejs()
+          && felter(['person', 'dato', 'beloeb', 'note'], ['person', 'dato', 'beloeb', 'note'])
+          && request.resource.data.person is string
+          && (request.resource.data.person in team().medlemmer
+            || (resource != null && request.resource.data.person == resource.data.person))
+          && request.resource.data.dato is string
+          && request.resource.data.dato.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          && request.resource.data.beloeb is number
+          && request.resource.data.beloeb > 0
+          && request.resource.data.note is string;
       }
     }
   }

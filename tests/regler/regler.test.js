@@ -372,3 +372,60 @@ test('profil: fødselsdag, færdigheder og billede valideres', async () => {
   await assertFails(setDoc(doc(ven(), 'profilbilleder/ven'), { billede: 'data:image/jpeg;base64,' + 'A'.repeat(200000) }));
   await assertSucceeds(deleteDoc(doc(ven(), 'profilbilleder/ven')));
 });
+
+// --- Sjakbejs, timeløn og udbetalinger -------------------------------------------------
+
+const udb = (person = 'tre') => ({ person, dato: '2026-11-23', beloeb: 1000, note: '' });
+
+test('sjakbejs: udpeges af et medlem, når der ingen er, og skal være medlem', async () => {
+  await medTeam({ medlemmer: ['ven', 'tre'], navne: { ven: 'Ven', tre: 'Tre' } });
+  await assertFails(updateDoc(doc(ven(), 'teams/t1'), { sjakbejs: 'admin' }));
+  await assertSucceeds(updateDoc(doc(ven(), 'teams/t1'), { sjakbejs: 'tre' }));
+});
+
+test('sjakbejs: kun sjakbejsen giver rollen videre eller fjerner den', async () => {
+  await medTeam({ medlemmer: ['ven', 'tre'], navne: { ven: 'Ven', tre: 'Tre' }, sjakbejs: 'tre' });
+  await assertFails(updateDoc(doc(ven(), 'teams/t1'), { sjakbejs: 'ven' }));
+  await assertFails(updateDoc(doc(ven(), 'teams/t1'), { sjakbejs: null }));
+  await assertSucceeds(updateDoc(doc(ven(), 'teams/t1'), { navn: 'Nyt navn' }));
+  await assertSucceeds(updateDoc(doc(tre(), 'teams/t1'), { sjakbejs: 'ven' }));
+  await assertSucceeds(updateDoc(doc(ven(), 'teams/t1'), { sjakbejs: null }));
+});
+
+test('sjakbejs: er sjakbejsen fjernet fra teamet, kan et andet medlem udpege en ny', async () => {
+  await medTeam({ medlemmer: ['ven', 'tre'], navne: { ven: 'Ven', tre: 'Tre' }, sjakbejs: 'tre' });
+  await assertSucceeds(updateDoc(doc(ven(), 'teams/t1'), { medlemmer: arrayRemove('tre') }));
+  await assertSucceeds(updateDoc(doc(ven(), 'teams/t1'), { sjakbejs: 'ven' }));
+});
+
+test('timeløn: kun sjakbejsen ændrer loen', async () => {
+  await medTeam({ medlemmer: ['ven', 'tre'], navne: { ven: 'Ven', tre: 'Tre' }, sjakbejs: 'tre' });
+  const loen = { ven: [{ fra: '2026-11-01', kr: 220 }] };
+  await assertFails(updateDoc(doc(ven(), 'teams/t1'), { loen }));
+  await assertFails(updateDoc(doc(tre(), 'teams/t1'), { loen: 'mange penge' }));
+  await assertSucceeds(updateDoc(doc(tre(), 'teams/t1'), { loen }));
+});
+
+test('timeløn: man kan ikke udpege sig selv og sætte løn i samme skrivning', async () => {
+  await medTeam({ medlemmer: ['ven', 'tre'], navne: { ven: 'Ven', tre: 'Tre' } });
+  await assertFails(updateDoc(doc(ven(), 'teams/t1'), { sjakbejs: 'ven', loen: { ven: [{ fra: '2026-11-01', kr: 999 }] } }));
+});
+
+test('udbetalinger: kun sjakbejsen skriver, alle medlemmer læser, og felterne valideres', async () => {
+  await medTeam({ medlemmer: ['ven', 'tre'], navne: { ven: 'Ven', tre: 'Tre' }, sjakbejs: 'ven' });
+  await assertFails(setDoc(doc(tre(), 'teams/t1/udbetalinger/u1'), udb()));
+  await assertSucceeds(setDoc(doc(ven(), 'teams/t1/udbetalinger/u1'), udb()));
+  await assertSucceeds(getDoc(doc(tre(), 'teams/t1/udbetalinger/u1')));
+  await assertSucceeds(getDocs(collection(tre(), 'teams/t1/udbetalinger')));
+  await assertFails(deleteDoc(doc(tre(), 'teams/t1/udbetalinger/u1')));
+  await assertFails(setDoc(doc(ven(), 'teams/t1/udbetalinger/u2'), { ...udb(), beloeb: 0 }));
+  await assertFails(setDoc(doc(ven(), 'teams/t1/udbetalinger/u3'), udb('admin')));
+  await assertFails(setDoc(doc(ven(), 'teams/t1/udbetalinger/u4'), { ...udb(), ekstra: 1 }));
+  await assertFails(getDoc(doc(admin(), 'teams/t1/udbetalinger/u1')));
+  await assertSucceeds(deleteDoc(doc(ven(), 'teams/t1/udbetalinger/u1')));
+});
+
+test('udbetalinger: findes ikke under Mig', async () => {
+  await assertFails(setDoc(doc(ven(), 'brugere/ven/udbetalinger/u1'), udb('ven')));
+  await assertFails(getDocs(collection(ven(), 'brugere/ven/udbetalinger')));
+});
