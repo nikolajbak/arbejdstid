@@ -36,6 +36,7 @@ cd push && npx wrangler dev --port 8787    # workeren lokalt (kræver push/.dev.
 | Firestore og synk | `firebase.js`, `firebase-config.js` (offentlig med vilje), `sky.js`, `store.js`, `team.js` |
 | Kvitteringer | `billede.js`, `kvittering.js` → workerens `push/src/kvittering.js` (Gemini) |
 | Push | `push.js`, `pushkoe.js`, `push-config.js` → `push/src/` (`index.js`, `send.js`, `token.js`, `team.js`) |
+| Sjakbejs, timeløn, udbetalinger og lønkortet (beregning i `core.js`: `loenOversigt`, `daekningsbidrag`) | `loen.js` |
 | Markering af det, der venter, på tværs af teams | `markering.js` (lytter pr. team, tal på »Mig ▾«, kort på Tid, tal på appens ikon) |
 | Sikkerhedsregler | `firestore.rules` (tests i `tests/regler/`) |
 | Offline og opdatering | `sw.js` (`FILER`) |
@@ -62,7 +63,7 @@ cd push && npx wrangler dev --port 8787    # workeren lokalt (kræver push/.dev.
 ## Data og hemmeligheder
 
 - Hver brugers data ligger under brugerens egen konto; teams deler kunder,
-  opgaver, poster og saldo. Godkendte brugere står i samlingen `godkendte`
+  opgaver, poster og saldo, og har desuden `sjakbejs`, `loen` og samlingen `udbetalinger`. Godkendte brugere står i samlingen `godkendte`
   (dokument-id = e-mail med små bogstaver).
 - Worker-secrets (`npx wrangler secret put`): `VAPID_PRIVATE`,
   `VAPID_SUBJECT`, `GEMINI_API_KEY`. Lokalt i `push/.dev.vars` (gitignored,
@@ -89,6 +90,11 @@ cd push && npx wrangler dev --port 8787    # workeren lokalt (kræver push/.dev.
   »Afregnet«/»Delvist afregnet« og »afregnet til og med«.
 - **Tid for en anden** venter på personens godkendelse og tæller ikke i
   saldoen før.
+- **Løn til teamet** (Nikolaj 2026-11-23, spec `docs/superpowers/specs/2026-11-23-sjakbejs-design.md`):
+  fast timeløn pr. person med gyldig-fra-dato (`team.loen`), regnet på den rundede tid fra
+  `dagsTider`. Intet skjules for almindelige medlemmer. Kun `team.sjakbejs` må ændre `loen` og
+  skrive `teams/{id}/udbetalinger` — samlingen findes kun i teams (`TEAM_SAMLINGER` i `sky.js`),
+  og en afvist lytter på den giver en tom liste i stedet for »ude af teamet«.
 - **Gemini-modellen vælges som i Kalorietælleren:** nyeste Flash, nøglen har
   adgang til, med kapløb og helbred pr. model.
 - Emulatorerne kræver Java: `PATH` sættes i npm-scripterne til

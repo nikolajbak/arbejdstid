@@ -3,21 +3,23 @@ import { db } from './firebase.js';
 import { forskel } from './core.js';
 
 const SAMLINGER = ['kunder', 'opgavetyper', 'registreringer', 'poster', 'opgaver'];
+// Udbetalinger findes kun i teams (sjakbejsens udbetalinger til medlemmerne).
+const TEAM_SAMLINGER = [...SAMLINGER, 'udbetalinger'];
 const kopi = (x) => structuredClone(x);
 const efterNavn = (a, b) => a.navn.localeCompare(b.navn, 'da');
 
 // Mig: data og person er begge brugerens profil.
-export const migSted = (uid) => ({ data: doc(db, 'brugere', uid), person: doc(db, 'brugere', uid) });
+export const migSted = (uid) => ({ data: doc(db, 'brugere', uid), person: doc(db, 'brugere', uid), samlinger: SAMLINGER });
 
 // Et team: samlingerne ligger under teamet, uret og genvejene under personen.
-export const teamSted = (teamId, uid) => ({ data: doc(db, 'teams', teamId), person: doc(db, 'teams', teamId, 'personer', uid) });
+export const teamSted = (teamId, uid) => ({ data: doc(db, 'teams', teamId), person: doc(db, 'teams', teamId, 'personer', uid), samlinger: TEAM_SAMLINGER });
 
 // Holder et arbejdssteds data i hukommelsen i samme form som appen altid har brugt,
 // og skriver kun de dokumenter, der er ændret. Virker også uden net.
 // fejl(err, 'lyt' | 'skriv')
-export function startSky({ data: rod, person }, { data, status, fejl }) {
+export function startSky({ data: rod, person, samlinger = SAMLINGER }, { data, status, fejl }) {
   // Seneste kendte udgave af hver del. undefined = ikke modtaget endnu.
-  const del = { ur: undefined, skjult: undefined, kunder: undefined, opgavetyper: undefined, registreringer: undefined, poster: undefined, opgaver: undefined };
+  const del = { ur: undefined, skjult: undefined, ...Object.fromEntries(samlinger.map((n) => [n, undefined])) };
   const ventende = {};
   let sidst = null;
   let varVentende = false;
@@ -30,6 +32,7 @@ export function startSky({ data: rod, person }, { data, status, fejl }) {
       registreringer: del.registreringer,
       poster: del.poster,
       opgaver: del.opgaver,
+      ...('udbetalinger' in del && { udbetalinger: del.udbetalinger }),
       ur: del.ur,
       skjult: del.skjult,
     };
@@ -56,11 +59,18 @@ export function startSky({ data: rod, person }, { data, status, fejl }) {
       meld('profil', s.metadata);
       opdater();
     }, (e) => fejl(e, 'lyt')),
-    ...SAMLINGER.map((navn) => onSnapshot(collection(rod, navn), medMetadata, (s) => {
+    ...samlinger.map((navn) => onSnapshot(collection(rod, navn), medMetadata, (s) => {
       del[navn] = s.docs.map((d) => ({ id: d.id, ...d.data() }));
       meld(navn, s.metadata);
       opdater();
-    }, (e) => fejl(e, 'lyt'))),
+    }, (e) => {
+      // En afvist lytter på udbetalinger må ikke ligne, at man er ude af teamet (fx mens
+      // nye regler udgives); så vises bare ingen udbetalinger.
+      if (navn !== 'udbetalinger') return fejl(e, 'lyt');
+      console.error(e);
+      del.udbetalinger = [];
+      opdater();
+    })),
   ];
 
   function gem(tilstand) {
@@ -69,7 +79,7 @@ export function startSky({ data: rod, person }, { data, status, fejl }) {
     sidst = kopi(tilstand);
     // Ekkoet af egne skrivninger skal ikke ligne en ændring, selv hvis delene
     // ankommer hver for sig.
-    for (const navn of SAMLINGER) del[navn] = kopi(tilstand[navn]);
+    for (const navn of samlinger) del[navn] = kopi(tilstand[navn] ?? []);
     del.ur = kopi(tilstand.ur ?? null);
     del.skjult = kopi(tilstand.skjult ?? {});
     for (let i = 0; i < ops.length; i += 500) {

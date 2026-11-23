@@ -7,6 +7,7 @@ import { aabnRegistrering, registreringsRaekke } from './registrering.js';
 import { aabnPost, postRaekke } from './post.js';
 import { redigerKunde } from './indstillinger.js';
 import { opgaveListe } from './opgave.js';
+import { kundeLoen, loenKort } from './loen.js';
 
 // Den åbne kunde, eller null for listen. Nulstilles ved skift af arbejdssted.
 let valgt = null;
@@ -85,7 +86,7 @@ function kundeListe() {
   const kunder = [...alle].map((id) => ({ id, navn: navnPaaKunde(id), o: kundeOversigt(id, godkendte(t.state.registreringer), godkendte(t.state.poster), t.state.opgavetyper, t.state.kunder) }))
     // Arkiverede og slettede kunder vises kun, mens der er noget udestående.
     .filter((k) => (kundePaa(k.id) && !kundePaa(k.id).arkiveret) || Math.abs(k.o.saldo) >= 0.005);
-  if (!kunder.length) return h('p', { class: 'tom' }, 'Ingen kunder endnu. Opret dem under Indstillinger.');
+  if (!kunder.length) return [h('p', { class: 'tom' }, 'Ingen kunder endnu. Opret dem under Indstillinger.'), loenKort()];
   const skylder = kunder.filter((k) => k.o.saldo >= 0.005).sort((a, b) => b.o.saldo - a.o.saldo);
   const resten = kunder.filter((k) => k.o.saldo < 0.005).sort((a, b) => a.navn.localeCompare(b.navn, 'da'));
   const iAlt = skylder.reduce((n, k) => n + k.o.saldo, 0);
@@ -105,6 +106,7 @@ function kundeListe() {
       h('span', { class: 'stor' }, formatKr(iAlt)),
       h('span', { class: 'under' }, skylder.length === 1 ? '1 kunde skylder' : `${skylder.length} kunder skylder`),
     ),
+    loenKort(),
     skylder.length > 0 && [h('h3', { class: 'dag' }, h('span', {}, 'Skylder')), h('div', { class: 'kort' }, skylder.map(raekke))],
     resten.length > 0 && [h('h3', { class: 'dag' }, h('span', {}, skylder.length ? 'Øvrige' : 'Kunder')), h('div', { class: 'kort' }, resten.map(raekke))],
   ];
@@ -230,6 +232,8 @@ function kundeSide(id) {
     ),
 
     forbrug(id, o.saldo, o.status),
+
+    kundeLoen(id),
 
     sektion('Opgaveliste'),
     opgaveListe(id, !!kunde),

@@ -43,6 +43,16 @@ få et overblik og en CSV-fil til fakturering.
   Profilen viser også din tid og indtjening (uden moms) i det åbne
   arbejdssted. Tryk på et medlem under Indstillinger → Team for at se
   medlemmets profil. Tid og indtjening ser kun du selv.
+- **Sjakbejs og løn:** i et team kan én være sjakbejs (Indstillinger → Team →
+  **Sjakbejs**). Sjakbejsen modtager kundernes betalinger og betaler teamet.
+  Har teamet ingen sjakbejs, kan alle vælge en; ellers kan kun sjakbejsen give
+  rollen videre. Kortet **Løn** på Kunder viser, hvad hver har til gode:
+  timer (rundet til kvarter pr. dag som over for kunden) × timeløn, plus
+  personens udgifter og brændstof, minus kontanter fra kunder i personens hånd
+  og minus udbetalinger. Tryk på en person for detaljer; sjakbejsen kan dér
+  sætte timeløn (med en dato, den gælder fra) og registrere udbetalinger.
+  Kundesiden viser løn og dækningsbidrag, når der er sat timeløn. Alle i teamet
+  kan se tallene.
 - **Teams:** tryk på **Mig ▾** øverst for at skifte mellem dine egne data og
   dine teams, se invitationer eller oprette et team. I et team deler I kunder,
   opgaver, poster og saldo, og alle ser alles tid. Under **Hvem**, når du
@@ -217,7 +227,7 @@ kunder har nu en farve, og registreringer kan være uden opgave. Version 4
 kræver det også: fjernede genveje gemmes på profilen. Version 6 kræver det
 også: poster (udgifter, brændstof, kontantudlæg og betalinger). Version 7
 kræver det også: teams. Godkendelse og billeder på poster kræver det også, og det gør
-moms på kunder. Udgives reglerne ikke,
+moms på kunder, og sjakbejs, timeløn og udbetalinger. Udgives reglerne ikke,
 afvises de nye ændringer.
 
 ## Installér på iPhone

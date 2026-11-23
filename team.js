@@ -59,6 +59,9 @@ export const traekTilbage = (id, email) => updateDoc(team(id), { inviterede: arr
 // Navnet bliver stående, så den fjernedes registreringer stadig viser det.
 export const fjernMedlem = (id, uid) => updateDoc(team(id), { medlemmer: arrayRemove(uid) });
 export const omdoeb = (id, navn) => updateDoc(team(id), { navn });
+// Sjakbejsen (uid eller null) og timelønnen ({ uid: [{ fra, kr }] }); reglerne afgør, hvem der må.
+export const saetSjakbejs = (id, uid) => updateDoc(team(id), { sjakbejs: uid });
+export const saetTeamLoen = (id, loen) => updateDoc(team(id), { loen });
 export const saetMitNavn = async (id, uid, navn) => {
   await updateDoc(team(id), { [`navne.${uid}`]: navn });
   await saetKatalog(uid, t.bruger.email, navn).catch(console.error);

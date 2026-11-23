@@ -6,6 +6,7 @@ import { appAdresse } from './konto.js';
 import { meldInvitation } from './push.js';
 import { visProfil } from './profil.js';
 import { migSted, teamSted } from './sky.js';
+import { sjakbejsSektion } from './loen.js';
 import {
   opretTeam, blivMedlem, inviter, traekTilbage, fjernMedlem, omdoeb, saetMitNavn, hentData, flytData, flytUdvalgt, hentKatalog,
 } from './team.js';
@@ -353,6 +354,7 @@ export function teamSektion() {
             if (confirm(`Fjern ${personNavn(team, m)} fra ${team.navn}? Registreringerne bliver i teamet.`)) proev(() => fjernMedlem(team.id, m))();
           },
         }, 'Fjern'))))),
+    sjakbejsSektion(),
     team.inviterede.length > 0 && [
       h('div', { class: 'ark-overskrift' }, h('h3', {}, 'Inviterede')),
       h('div', { class: 'kort' }, team.inviterede.map((adr) => h('div', { class: 'raekke' },

@@ -30,6 +30,7 @@ const FILER = [
   'historik.js',
   'godkend.js',
   'kunder.js',
+  'loen.js',
   'indstillinger.js',
   'push.js',
   'pushkoe.js',

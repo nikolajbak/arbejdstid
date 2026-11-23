@@ -191,7 +191,8 @@ function backupArk() {
       if (!r.ok) return (fejl.textContent = r.fejl);
       if (!confirm('Dette erstatter alle nuværende data. Fortsæt?')) return;
       const { version, ...data } = r.data;
-      t.state = data;
+      // Udbetalinger skrives kun af sjakbejsen og er ikke en del af en backup.
+      t.state = { ...data, ...(t.state.udbetalinger && { udbetalinger: t.state.udbetalinger }) };
       lukArk();
       commit();
       besked('Backup indlæst');
