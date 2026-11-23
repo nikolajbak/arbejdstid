@@ -1120,3 +1120,85 @@ test('markeringer: ikke klar, før alle teams har svaret', () => {
   const r = markeringer({ a: 1 }, [{ id: 'a' }, { id: 'b' }], []);
   assert.deepEqual(r, { ialt: 1, prTeam: { a: 1, b: 0 }, klar: false });
 });
+
+// --- Løn til teamet ------------------------------------------------------------------
+
+import { loenVed, loenOversigt, daekningsbidrag, saetLoen, forskel as forskelL } from '../core.js';
+
+const lReg = (id, person, start, slut, extra = {}) => ({ id, kundeId: 'k1', opgavetypeId: '', start, slut, timepris: 500, note: '', person, ...extra });
+const lTeam = { medlemmer: ['a', 'b'], loen: { a: [{ fra: '2026-11-01', kr: 200 }, { fra: '2026-11-10', kr: 250 }] } };
+
+test('loenVed giver seneste trin med fra på eller før dagen', () => {
+  assert.equal(loenVed(lTeam.loen, 'a', '2026-10-31'), null);
+  assert.equal(loenVed(lTeam.loen, 'a', '2026-11-01'), 200);
+  assert.equal(loenVed(lTeam.loen, 'a', '2026-11-09'), 200);
+  assert.equal(loenVed(lTeam.loen, 'a', '2026-11-10'), 250);
+  assert.equal(loenVed(lTeam.loen, 'b', '2026-11-10'), null);
+  assert.equal(loenVed(undefined, 'a', '2026-11-10'), null);
+});
+
+test('loenOversigt: rundet tid × løn + udlæg − kontant − udbetalt', () => {
+  const regs = [lReg('r1', 'a', '2026-11-03T08:00:00', '2026-11-03T09:10:00')];
+  const poster = [
+    { id: 'p1', kundeId: 'k1', type: 'udgift', dato: '2026-11-03', beloeb: 100, note: '', person: 'a' },
+    { id: 'p2', kundeId: 'k1', type: 'braendstof', dato: '2026-11-03', beloeb: 50, note: '', person: 'a' },
+    { id: 'p3', kundeId: 'k1', type: 'kontant', dato: '2026-11-03', beloeb: 30, note: '', person: 'a' },
+    { id: 'p4', kundeId: 'k1', type: 'betaling', dato: '2026-11-03', beloeb: 999, note: '' },
+  ];
+  const udb = [{ id: 'u1', person: 'a', dato: '2026-11-05', beloeb: 200, note: '' }];
+  const [a, b] = loenOversigt(lTeam, regs, poster, udb);
+  assert.deepEqual(a, { person: 'a', ms: 75 * 60000, msUdenLoen: 0, optjent: 250, udlaeg: 150, kontant: 30, udbetalt: 200, tilGode: 170 });
+  assert.equal(b.person, 'b');
+  assert.equal(b.tilGode, 0);
+});
+
+test('loenOversigt: afventende tæller ikke, og lønskift gælder fra datoen', () => {
+  const regs = [
+    lReg('r1', 'a', '2026-11-09T08:00:00', '2026-11-09T09:00:00'),
+    lReg('r2', 'a', '2026-11-10T08:00:00', '2026-11-10T09:00:00'),
+    lReg('r3', 'a', '2026-11-11T08:00:00', '2026-11-11T09:00:00', { afventer: true, oprettetAf: 'b' }),
+    { id: 'p1', kundeId: 'k1', type: 'udgift', dato: '2026-11-03', beloeb: 100, note: '', person: 'a', afventer: true, oprettetAf: 'b' },
+  ];
+  const [a] = loenOversigt(lTeam, regs.slice(0, 3), [regs[3]], []);
+  assert.equal(a.optjent, 450);
+  assert.equal(a.udlaeg, 0);
+  assert.equal(a.ms, 2 * 3600000);
+});
+
+test('loenOversigt: tid uden løn tæller 0 kr og vises for sig', () => {
+  const [, b] = loenOversigt(lTeam, [lReg('r1', 'b', '2026-11-03T08:00:00', '2026-11-03T10:00:00')], [], []);
+  assert.equal(b.optjent, 0);
+  assert.equal(b.msUdenLoen, 2 * 3600000);
+  assert.ok(!Number.isNaN(b.tilGode));
+});
+
+test('loenOversigt: tidligere medlem vises kun med noget åbent', () => {
+  const team = { medlemmer: ['a'], loen: { x: [{ fra: '2026-01-01', kr: 100 }] } };
+  const regs = [lReg('r1', 'x', '2026-11-03T08:00:00', '2026-11-03T09:00:00')];
+  assert.deepEqual(loenOversigt(team, regs, [], []).map((p) => p.person), ['a', 'x']);
+  const udb = [{ id: 'u1', person: 'x', dato: '2026-11-05', beloeb: 100, note: '' }];
+  assert.deepEqual(loenOversigt(team, regs, [], udb).map((p) => p.person), ['a']);
+});
+
+test('daekningsbidrag: kundens tid uden moms minus løn', () => {
+  const regs = [lReg('r1', 'a', '2026-11-03T08:00:00', '2026-11-03T10:00:00'), lReg('r2', 'b', '2026-11-03T08:00:00', '2026-11-03T09:00:00'), { ...lReg('r3', 'a', '2026-11-03T08:00:00', '2026-11-03T09:00:00'), kundeId: 'k2' }];
+  const d = daekningsbidrag('k1', regs, lTeam, [{ id: 'k1', moms: true }]);
+  assert.deepEqual(d, { tidKr: 1500, loen: 400, bidrag: 1100, msUdenLoen: 3600000 });
+});
+
+test('saetLoen erstatter trin med samme dato, sorterer og fjerner med null', () => {
+  let l = saetLoen(undefined, 'a', '2026-11-10', 250);
+  l = saetLoen(l, 'a', '2026-11-01', 200);
+  assert.deepEqual(l, { a: [{ fra: '2026-11-01', kr: 200 }, { fra: '2026-11-10', kr: 250 }] });
+  const l2 = saetLoen(l, 'a', '2026-11-10', 260);
+  assert.deepEqual(l2.a[1], { fra: '2026-11-10', kr: 260 });
+  assert.deepEqual(l.a[1].kr, 250);
+  assert.deepEqual(saetLoen(saetLoen(l, 'a', '2026-11-10', null), 'a', '2026-11-01', null), {});
+});
+
+test('forskel skriver og sletter udbetalinger, og Mig uden feltet giver ingen ops', () => {
+  const u = { id: 'u1', person: 'a', dato: '2026-11-05', beloeb: 200, note: '' };
+  assert.deepEqual(forskelL({ udbetalinger: [] }, { udbetalinger: [u] }), [{ type: 'set', samling: 'udbetalinger', id: 'u1', data: { person: 'a', dato: '2026-11-05', beloeb: 200, note: '' } }]);
+  assert.deepEqual(forskelL({ udbetalinger: [u] }, { udbetalinger: [] }), [{ type: 'slet', samling: 'udbetalinger', id: 'u1' }]);
+  assert.deepEqual(forskelL({ kunder: [] }, { kunder: [] }), []);
+});

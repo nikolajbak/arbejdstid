@@ -264,6 +264,81 @@ export function kundeOversigt(kundeId, registreringer, poster, opgavetyper, kund
   };
 }
 
+// --- Løn til teamet ------------------------------------------------------------------
+// team.loen er { uid: [{ fra: 'YYYY-MM-DD', kr }] } sorteret efter fra. Sjakbejsen skylder
+// hver person rundet tid × den timeløn, der gjaldt den dag, plus personens udgifter og
+// brændstof, minus kontanter fra kunden i personens hånd og minus udbetalinger.
+
+// Timelønnen for uid på dagen, eller null, hvis der ikke var sat en.
+export function loenVed(loen, uid, dag) {
+  let kr = null;
+  for (const trin of loen?.[uid] ?? []) if (trin.fra <= dag) kr = trin.kr;
+  return kr;
+}
+
+// Ny kopi af loen med trinnet for uid fra datoen sat til kr; null fjerner trinnet.
+export function saetLoen(loen, uid, fra, kr) {
+  const ny = structuredClone(loen ?? {});
+  const trin = (ny[uid] ?? []).filter((x) => x.fra !== fra);
+  if (kr !== null) trin.push({ fra, kr });
+  trin.sort((a, b) => (a.fra < b.fra ? -1 : 1));
+  if (trin.length) ny[uid] = trin;
+  else delete ny[uid];
+  return ny;
+}
+
+// Lønnen for godkendte registreringer: Map registrering → { ms, kr } (kr er null uden løn).
+function loenPrReg(team, registreringer) {
+  const regs = godkendte(registreringer).filter((r) => r.person);
+  const tider = dagsTider(regs);
+  return new Map(regs.map((r) => {
+    const ms = tider.get(r);
+    const sats = loenVed(team?.loen, r.person, dayKey(new Date(r.start)));
+    return [r, { ms, kr: sats === null ? null : (ms / TIME_MS) * sats }];
+  }));
+}
+
+// Pr. person: { person, ms, msUdenLoen, optjent, udlaeg, kontant, udbetalt, tilGode }.
+// Medlemmerne i teamets rækkefølge, derefter tidligere personer med noget åbent.
+export function loenOversigt(team, registreringer, poster, udbetalinger) {
+  const pr = new Map();
+  const person = (uid) => {
+    if (!pr.has(uid)) pr.set(uid, { person: uid, ms: 0, msUdenLoen: 0, optjent: 0, udlaeg: 0, kontant: 0, udbetalt: 0, tilGode: 0 });
+    return pr.get(uid);
+  };
+  for (const uid of team?.medlemmer ?? []) person(uid);
+  for (const [r, { ms, kr }] of loenPrReg(team, registreringer)) {
+    const p = person(r.person);
+    p.ms += ms;
+    if (kr === null) p.msUdenLoen += ms;
+    else p.optjent += kr;
+  }
+  for (const x of godkendte(poster)) {
+    if (!x.person) continue;
+    if (x.type === 'udgift' || x.type === 'braendstof') person(x.person).udlaeg += x.beloeb;
+    else if (x.type === 'kontant') person(x.person).kontant += x.beloeb;
+  }
+  for (const u of udbetalinger ?? []) person(u.person).udbetalt += u.beloeb;
+  const medlem = new Set(team?.medlemmer ?? []);
+  return [...pr.values()]
+    .map((p) => ({ ...p, tilGode: p.optjent + p.udlaeg - p.kontant - p.udbetalt }))
+    .filter((p) => medlem.has(p.person) || Math.abs(p.tilGode) >= 0.005);
+}
+
+// Kundens tid til kundens timepris (uden moms) minus løn for samme tid.
+export function daekningsbidrag(kundeId, registreringer, team, kunder = []) {
+  const regs = registreringer.filter((r) => r.kundeId === kundeId);
+  let tidKr = 0;
+  let loen = 0;
+  let msUdenLoen = 0;
+  for (const [r, { ms, kr }] of loenPrReg(team, regs)) {
+    tidKr += beloebFor(r, ms, []);
+    if (kr === null) msUdenLoen += ms;
+    else loen += kr;
+  }
+  return { tidKr, loen, bidrag: tidKr - loen, msUdenLoen };
+}
+
 export function formatDuration(ms) {
   const minutter = Math.floor(Math.max(0, ms) / 60000);
   const t = Math.floor(minutter / 60);
@@ -680,11 +755,11 @@ export function validateBackup(obj) {
 
 // --- Synkronisering med skyen ------------------------------------------------
 
-const SAMLINGER = ['kunder', 'opgavetyper', 'registreringer', 'poster', 'opgaver'];
+const SAMLINGER = ['kunder', 'opgavetyper', 'registreringer', 'poster', 'opgaver', 'udbetalinger'];
 
 // Udfylder felter, som ældre data kan mangle, så de består databasens regler.
 function rens(samling, { id, ...data }) {
-  if (samling === 'registreringer' || samling === 'poster' || samling === 'opgaver') return { ...data, note: data.note ?? '' };
+  if (samling === 'registreringer' || samling === 'poster' || samling === 'opgaver' || samling === 'udbetalinger') return { ...data, note: data.note ?? '' };
   return { ...data, arkiveret: !!data.arkiveret };
 }
 
