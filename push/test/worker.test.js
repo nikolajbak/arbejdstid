@@ -176,6 +176,8 @@ test('send: teksten bygges af navne', async () => {
     title: 'Holdet',
     body: 'Mig har registreret 2 til dig. Tryk for at godkende.',
     url: './?team=t1&vis=godkend',
+    slags: 'afventer',
+    antal: 2,
   });
 });
 
@@ -188,6 +190,8 @@ test('send: afvist-tekst og url uden vis', async () => {
     title: 'Holdet',
     body: 'Mig afviste 1 af dine registreringer.',
     url: './?team=t1',
+    slags: 'afvist',
+    antal: 1,
   });
 });
 
@@ -254,6 +258,8 @@ test('inviter: sender til den inviterede, fundet på e-mailen', async () => {
     title: 'Holdet',
     body: 'Mig har inviteret dig til teamet Holdet. Tryk for at se invitationen.',
     url: './?vis=invitationer',
+    slags: 'invitation',
+    antal: 1,
   });
 });
 

@@ -1,7 +1,8 @@
 // Til godkendelse: kortet øverst på Tid-fanen og arket med det, der venter på en selv.
 
 import { POST_TYPER, amountOf, farveFor, formatKr, godkend, personNavn, postBeloeb, ventende } from './core.js';
-import { t, commit, erstat, kundePaa, migITeam } from './tilstand.js';
+import { markering } from './markering.js';
+import { t, commit, erstat, kundePaa, migITeam, skiftArbejdssted } from './tilstand.js';
 import { h, aabnArk, arkTop, ikon, klokken, navnPaa } from './ui.js';
 import { aabnPost } from './post.js';
 import { aabnRegistrering, hvadTekst } from './registrering.js';
@@ -40,6 +41,25 @@ export function godkendKort() {
     h('span', { class: 'hoved' }, h('span', { class: 'titel' }, `${n} venter på din godkendelse`)),
     ikon('hoejre'),
   );
+}
+
+// Et kort pr. andet team med noget, der venter på en selv; et tryk skifter dertil og åbner arket.
+export function andreTeamsKort() {
+  const { prTeam } = markering();
+  return t.teams.filter((x) => x.id !== t.arbejdssted && prTeam[x.id] > 0).map((x) =>
+    h('button', {
+      class: 'kort godkend-kort raekke',
+      onclick: () => {
+        skiftArbejdssted(x.id);
+        t.visGodkend = Date.now();
+      },
+    },
+    h('span', { class: 'hoved' },
+      h('span', { class: 'titel' }, `${prTeam[x.id]} venter på din godkendelse`),
+      h('span', { class: 'under' }, `i ${x.navn}`),
+    ),
+    ikon('hoejre'),
+    ));
 }
 
 function fjern(samling, x) {

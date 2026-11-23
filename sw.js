@@ -33,6 +33,7 @@ const FILER = [
   'indstillinger.js',
   'push.js',
   'pushkoe.js',
+  'markering.js',
   'push-config.js',
   'manifest.webmanifest',
   'icons/icon-192.png',
@@ -50,7 +51,7 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys()
-      .then((navne) => Promise.all(navne.filter((n) => n !== CACHE).map((n) => caches.delete(n))))
+      .then((navne) => Promise.all(navne.filter((n) => n !== CACHE && n !== MAERKE).map((n) => caches.delete(n))))
       .then(ryd)
       .then(() => self.clients.claim()),
   );
@@ -101,22 +102,50 @@ async function erDerNyt() {
 }
 
 self.addEventListener('message', (e) => {
+  if (typeof e.data?.maerke === 'number') return e.waitUntil(gemMaerke(e.data.maerke));
   if (e.data !== 'tjek') return;
   e.waitUntil(erDerNyt().then((nyt) => e.source.postMessage({ nyt })));
 });
 
 // --- Push -----------------------------------------------------------------
 
+// Tallet på appens ikon. Appen sender det rigtige tal, når den er åben; imens den ikke er
+// fremme, lægger hver notifikation om noget, der venter på en selv, sit antal til.
+const MAERKE = 'arbejdstid-maerke';
+const MAERKE_URL = 'maerke';
+
+async function hentMaerke() {
+  const svar = await (await caches.open(MAERKE)).match(MAERKE_URL);
+  return svar ? Number(await svar.text()) || 0 : 0;
+}
+
+async function gemMaerke(n) {
+  await (await caches.open(MAERKE)).put(MAERKE_URL, new Response(String(n)));
+}
+
+async function taelOp(d) {
+  if (d.slags !== 'afventer' && d.slags !== 'invitation') return;
+  // Er appen fremme, sætter den selv tallet ud fra databasen; ellers tælles det dobbelt.
+  const vinduer = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  if (vinduer.some((v) => v.url.startsWith(self.registration.scope) && v.visibilityState === 'visible')) return;
+  const n = (await hentMaerke()) + (Number.isInteger(d.antal) && d.antal > 0 ? d.antal : 1);
+  await gemMaerke(n);
+  await self.navigator.setAppBadge?.(n);
+}
+
 // Workeren sender { title, body, url }; url er relativ til appen.
 self.addEventListener('push', (e) => {
   let d = {};
   try { d = e.data?.json() ?? {}; } catch { /* ikke JSON: vis en tom besked */ }
-  e.waitUntil(self.registration.showNotification(d.title || 'Arbejdstid', {
-    body: d.body,
-    data: { url: d.url || './' },
-    icon: './icons/icon-192.png',
-    badge: './icons/icon-192.png',
-  }));
+  e.waitUntil(Promise.all([
+    self.registration.showNotification(d.title || 'Arbejdstid', {
+      body: d.body,
+      data: { url: d.url || './' },
+      icon: './icons/icon-192.png',
+      badge: './icons/icon-192.png',
+    }),
+    taelOp(d).catch(() => {}),
+  ]));
 });
 
 // Et åbent vindue skifter til adressen og kommer frem; ellers åbnes et nyt.

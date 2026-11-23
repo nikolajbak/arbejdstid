@@ -99,7 +99,12 @@ svg.ikon-play, svg.ikon-stop { fill: currentColor; stroke-width: 1.5; }
 }
 .sted span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sted[hidden] { display: none; }
-.sted.prik-ny::after { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--fejl); }
+.sted[data-antal]::after, .antal-maerke {
+  content: attr(data-antal); min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box; border-radius: 9px;
+  background: var(--fejl); color: var(--bg); font-size: 12px; font-weight: 600; line-height: 18px; text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.raekke > .antal-maerke { flex: none; }
 #sync[hidden] { display: none; }
 
 main {

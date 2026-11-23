@@ -17,6 +17,8 @@ export const t = {
   team: null,
   teams: [],
   invitationer: [],
+  // Det, der venter på en selv i hvert team (teamId → antal), uanset hvilket arbejdssted der er åbent.
+  venterITeam: {},
   // Tidspunkt (ms), hvor en notifikation bad om at åbne Til godkendelse; 0 = intet ønske.
   visGodkend: 0,
 };

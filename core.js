@@ -436,6 +436,19 @@ export const godkendte = (liste) => liste.filter((x) => !x.afventer);
 // Det, uid selv skal tage stilling til.
 export const ventende = (liste, uid) => liste.filter((x) => x.afventer && x.person === uid);
 
+// Det, der venter på en selv på tværs af arbejdssteder. venterITeam er teamId → antal fra
+// lytterne; teams, man ikke længere er med i, tæller ikke. Hver invitation tæller én.
+// klar: alle teams har svaret, så tallet kan sættes på appens ikon uden at hoppe.
+export function markeringer(venterITeam, teams, invitationer) {
+  const prTeam = {};
+  let ialt = invitationer.length;
+  for (const x of teams) {
+    prTeam[x.id] = venterITeam[x.id] ?? 0;
+    ialt += prTeam[x.id];
+  }
+  return { ialt, prTeam, klar: teams.every((x) => x.id in venterITeam) };
+}
+
 // Ny kopi af x efter en rettelse foretaget af afsender: andres rettelser afventer
 // personens godkendelse, personens egne (og Mig) er godkendt med det samme.
 export function markerRettelse(x, afsender) {

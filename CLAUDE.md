@@ -36,6 +36,7 @@ cd push && npx wrangler dev --port 8787    # workeren lokalt (kræver push/.dev.
 | Firestore og synk | `firebase.js`, `firebase-config.js` (offentlig med vilje), `sky.js`, `store.js`, `team.js` |
 | Kvitteringer | `billede.js`, `kvittering.js` → workerens `push/src/kvittering.js` (Gemini) |
 | Push | `push.js`, `pushkoe.js`, `push-config.js` → `push/src/` (`index.js`, `send.js`, `token.js`, `team.js`) |
+| Markering af det, der venter, på tværs af teams | `markering.js` (lytter pr. team, tal på »Mig ▾«, kort på Tid, tal på appens ikon) |
 | Sikkerhedsregler | `firestore.rules` (tests i `tests/regler/`) |
 | Offline og opdatering | `sw.js` (`FILER`) |
 
@@ -92,7 +93,12 @@ cd push && npx wrangler dev --port 8787    # workeren lokalt (kræver push/.dev.
   adgang til, med kapløb og helbred pr. model.
 - Emulatorerne kræver Java: `PATH` sættes i npm-scripterne til
   `/opt/homebrew/opt/openjdk@21/bin`.
-- Notifikationer på iPhone virker kun, når appen er åbnet fra hjemmeskærmen.
+- Notifikationer på iPhone virker kun, når appen er åbnet fra hjemmeskærmen. Det samme gælder tallet på
+  ikonet (Badging API).
+- **Tallet på ikonet** (2026-11-23): appen sætter det rigtige tal (ventende i alle teams + invitationer) og
+  sender det til service workeren, der gemmer det i cachen `arbejdstid-maerke` (ryddes ikke ved `activate`).
+  Mens appen ikke er fremme, lægger `sw.js` notifikationens `antal` til ved `slags` `afventer`/`invitation`
+  — derfor sender workeren `slags` og `antal` med i push-indholdet. Tallet kan være for højt, til appen åbnes.
 - **Opstarten må ikke vente på nettet** (2026-11-20): med »netværk først« og
   3 s ventetid pr. fil i 5 importtrin, plus `getDoc` på godkendelse og profil
   (Firestore venter op til ca. 10 s på dårligt net) kunne opstarten tage

@@ -10,6 +10,7 @@ import { startSky, migSted, teamSted } from './sky.js';
 import { lytMineTeams, sikrKatalog } from './team.js';
 import { t, commit, setRender, setSkift, setGaaTil, saetBasis, setVedBeskeder } from './tilstand.js';
 import { meld, koerKoe, forny, tilbydNotifikationer } from './push.js';
+import { foelgTeams, markering, stopMarkering } from './markering.js';
 import { h, animerIndhold, felt, besked } from './ui.js';
 import { aabnSteder, visInvitationer } from './teamark.js';
 import { visTid } from './tid.js';
@@ -152,7 +153,10 @@ function visIkkeInviteret() {
 }
 
 async function efterLogin(user) {
-  if (!user) return visLogin();
+  if (!user) {
+    stopMarkering();
+    return visLogin();
+  }
   if (!user.emailVerified) return visBekraeft(user);
   visUde('Arbejdstid', h('p', { class: 'tom' }, 'Henter …'));
   try {
@@ -217,6 +221,7 @@ async function efterLogin(user) {
   lytMineTeams(user.uid, user.email, ({ teams, invitationer }) => {
     t.teams = teams;
     t.invitationer = invitationer;
+    foelgTeams();
     if (!startet) aabnFoerste();
     else if (t.arbejdssted && !teams.some((x) => x.id === t.arbejdssted)) udAfTeam();
     else {
@@ -300,8 +305,13 @@ function udAfTeam() {
 function visSted() {
   const knap = document.getElementById('sted');
   knap.hidden = false;
-  knap.firstChild.textContent = t.team?.navn ?? 'Mig';
-  knap.classList.toggle('prik-ny', t.invitationer.length > 0);
+  const navn = t.team?.navn ?? 'Mig';
+  knap.firstChild.textContent = navn;
+  // Alt, der venter på en selv i alle teams, plus invitationer — synligt fra ethvert arbejdssted.
+  const n = markering().ialt;
+  if (n) knap.dataset.antal = n > 99 ? '99+' : String(n);
+  else delete knap.dataset.antal;
+  knap.setAttribute('aria-label', n ? `${navn}, ${n} venter på dig` : navn);
 }
 
 // Viser nye invitationer én gang pr. enhed; fra en notifikation vises alle.
@@ -313,7 +323,7 @@ function tjekInvitationer(alle) {
   try { localStorage.setItem(noegle, JSON.stringify(r.sete)); } catch {}
   const liste = alle ? t.invitationer : r.nye;
   if (!liste.length) return;
-  // Et åbent ark afbrydes ikke; prikken på Mig ▾ viser stadig invitationen.
+  // Et åbent ark afbrydes ikke; tallet på Mig ▾ viser stadig invitationen.
   if (document.querySelector('dialog.ark[open]')) return besked(`Du er inviteret til teamet ${liste[0].navn}`);
   visInvitationer(liste);
 }

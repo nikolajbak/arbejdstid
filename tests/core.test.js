@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  nyeInvitationer, soegBrugere, soegFaerdigheder, foreslaaFaerdigheder, egenFaerdighed, foedselsdagTekst, profilTal,
+  markeringer, nyeInvitationer, soegBrugere, soegFaerdigheder, foreslaaFaerdigheder, egenFaerdighed, foedselsdagTekst, profilTal,
   durationMs, amountOf, dagsAfrunding, dagsTider, formatDuration, formatKr, parseHours, validateEntry,
 } from '../core.js';
 
@@ -1108,4 +1108,15 @@ test('toCSV af et udsnit tager oprundingen fra hele listen', () => {
   const alle = [dagReg('a', '09:00', '09:05'), dagReg('b', '10:00', '10:05')];
   assert.equal(toCSV([alle[0]], K, [], [], null, alle).split('\r\n').length, 2);
   assert.equal(toCSV([alle[1]], K, [], [], null, alle).split('\r\n').length, 3);
+});
+
+test('markeringer: summerer ventende i ens teams og invitationer', () => {
+  const teams = [{ id: 'a' }, { id: 'b' }];
+  const r = markeringer({ a: 2, b: 3, gammel: 9 }, teams, [{ id: 'c' }]);
+  assert.deepEqual(r, { ialt: 6, prTeam: { a: 2, b: 3 }, klar: true });
+});
+
+test('markeringer: ikke klar, før alle teams har svaret', () => {
+  const r = markeringer({ a: 1 }, [{ id: 'a' }, { id: 'b' }], []);
+  assert.deepEqual(r, { ialt: 1, prTeam: { a: 1, b: 0 }, klar: false });
 });

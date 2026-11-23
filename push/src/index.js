@@ -82,6 +82,9 @@ async function send({ kv, hentTeam, sendPush, bruger, token, krop }) {
     title: team.navn,
     body: TEKSTER[slags](afsender, antal),
     url: `./?team=${encodeURIComponent(teamId)}` + (slags === 'afventer' ? '&vis=godkend' : ''),
+    // Til tallet på appens ikon i service workeren.
+    slags,
+    antal,
   });
 
   return svar(200, await skub(kv, sendPush, til, payload));
@@ -138,6 +141,8 @@ async function inviter({ kv, hentTeam, sendPush, bruger, token, krop }) {
     title: team.navn,
     body: `${afsender} har inviteret dig til teamet ${team.navn}. Tryk for at se invitationen.`,
     url: './?vis=invitationer',
+    slags: 'invitation',
+    antal: 1,
   });
   return svar(200, await skub(kv, sendPush, til, payload));
 }

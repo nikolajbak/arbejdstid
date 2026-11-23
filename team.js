@@ -27,6 +27,21 @@ export function lytMineTeams(uid, email, cb, fejl) {
   return () => stop.forEach((f) => f());
 }
 
+// cb(antal): registreringer og poster i teamet, der venter på uid's godkendelse.
+export function lytVentende(teamId, uid, cb, fejl) {
+  const del = {};
+  const lyt = (samling) => onSnapshot(
+    query(collection(db, 'teams', teamId, samling), where('person', '==', uid), where('afventer', '==', true)),
+    (s) => {
+      del[samling] = s.size;
+      if ('registreringer' in del && 'poster' in del) cb(del.registreringer + del.poster);
+    },
+    fejl,
+  );
+  const stop = [lyt('registreringer'), lyt('poster')];
+  return () => stop.forEach((f) => f());
+}
+
 export async function opretTeam(navn, user) {
   const ref = doc(collection(db, 'teams'));
   await setDoc(ref, {

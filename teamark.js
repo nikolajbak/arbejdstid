@@ -9,11 +9,13 @@ import { migSted, teamSted } from './sky.js';
 import {
   opretTeam, blivMedlem, inviter, traekTilbage, fjernMedlem, omdoeb, saetMitNavn, hentData, flytData, flytUdvalgt, hentKatalog,
 } from './team.js';
+import { markering } from './markering.js';
 import { t, skiftArbejdssted } from './tilstand.js';
 import { h, aabnArk, lukArk, arkTop, besked, chip, downloadFile, felt, ikon } from './ui.js';
 
-const raekke = (titel, under, onclick, valgt = false) => h('button', { type: 'button', class: 'raekke', onclick },
+const raekke = (titel, under, onclick, valgt = false, antal = 0) => h('button', { type: 'button', class: 'raekke', onclick },
   h('span', { class: 'hoved' }, h('span', { class: 'titel' }, titel), under && h('span', { class: 'under' }, under)),
+  antal > 0 && h('span', { class: 'antal-maerke', title: `${antal} venter på din godkendelse` }, String(antal)),
   valgt ? ikon('check') : ikon('hoejre'));
 
 const antalMedlemmer = (x) => `${x.medlemmer.length} ${x.medlemmer.length === 1 ? 'medlem' : 'medlemmer'}`;
@@ -39,7 +41,7 @@ export function aabnSteder() {
     arkTop('Arbejdssted'),
     h('div', { class: 'kort' },
       raekke('Mig', 'Kun dine egne data', vaelg(null), !t.arbejdssted),
-      t.teams.map((x) => raekke(x.navn, antalMedlemmer(x), vaelg(x.id), x.id === t.arbejdssted)),
+      t.teams.map((x) => raekke(x.navn, antalMedlemmer(x), vaelg(x.id), x.id === t.arbejdssted, markering().prTeam[x.id])),
     ),
     t.invitationer.length > 0 && [
       h('div', { class: 'ark-overskrift' }, h('h3', {}, 'Invitationer')),
